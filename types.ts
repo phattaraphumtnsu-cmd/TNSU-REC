@@ -1,3 +1,4 @@
+
 export enum Role {
   RESEARCHER = 'RESEARCHER',
   ADVISOR = 'ADVISOR',
@@ -123,6 +124,7 @@ export interface Proposal {
   reviewers: string[]; // IDs of assigned reviewers
   reviews: Review[]; // Review contents
   consolidatedFeedback?: string; // Final feedback sent to researcher
+  consolidatedFileLink?: string; // Link to the consolidated review file (attached by admin)
   revisionCount: number;
   revisionLink?: string; // Link to fixed files
   revisionNoteLink?: string; // Optional link for clarification/memo
@@ -174,7 +176,8 @@ export enum Permission {
   FINALIZE_DECISION = 'FINALIZE_DECISION',
   SUBMIT_REVISION = 'SUBMIT_REVISION',
   
-  // Post Approval
+  // Certificate & Post Approval
+  ISSUE_CERTIFICATE = 'ISSUE_CERTIFICATE',
   SUBMIT_PROGRESS_REPORT = 'SUBMIT_PROGRESS_REPORT',
   ACKNOWLEDGE_PROGRESS_REPORT = 'ACKNOWLEDGE_PROGRESS_REPORT'
 }
@@ -186,6 +189,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_REPORTS,
     Permission.ASSIGN_REVIEWERS,
     Permission.FINALIZE_DECISION,
+    Permission.ISSUE_CERTIFICATE,
     Permission.ACKNOWLEDGE_PROGRESS_REPORT
   ],
   [Role.RESEARCHER]: [
@@ -208,3 +212,4 @@ export const hasPermission = (userRole: Role, permission: Permission): boolean =
   const permissions = ROLE_PERMISSIONS[userRole];
   return permissions ? permissions.includes(permission) : false;
 };
+    

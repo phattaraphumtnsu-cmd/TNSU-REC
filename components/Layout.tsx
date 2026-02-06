@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../services/mockDatabase';
-import { Role, Permission, hasPermission } from '../types';
+import { db } from '../services/database';
+import { Role, Permission, hasPermission, Notification } from '../types';
 import { LogOut, Home, FilePlus, Users, BarChart, UserCircle, HelpCircle, Bell } from 'lucide-react';
 
 interface LayoutProps {
@@ -13,14 +13,23 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavigate }) => {
   const user = db.currentUser;
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState(db.getNotifications(user?.id || ''));
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // Refresh notifications periodically
   useEffect(() => {
     if(!user) return;
-    const interval = setInterval(() => {
-        setNotifications(db.getNotifications(user.id));
-    }, 2000);
+    
+    const fetchNotifs = async () => {
+        try {
+            const data = await db.getNotifications(user.id);
+            setNotifications(data);
+        } catch (e) {
+            console.error("Failed to load notifications");
+        }
+    };
+
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 10000); // Poll every 10s
     return () => clearInterval(interval);
   }, [user]);
   
@@ -28,9 +37,10 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const handleNotificationClick = (link?: string) => {
-      db.markAsRead(user.id);
-      setNotifications(db.getNotifications(user.id));
+  const handleNotificationClick = async (link?: string) => {
+      await db.markAsRead(user.id);
+      const updated = await db.getNotifications(user.id);
+      setNotifications(updated);
       setShowNotifications(false);
       if(link) {
           const [page, search] = link.split('?');
@@ -60,7 +70,12 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
         <div className="p-6 border-b border-slate-700">
           <div className="flex items-center space-x-2">
             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center p-0.5">
-               <img src="https://placehold.co/100x100/1e293b/ffffff?text=LOGO" alt="Logo" className="w-full h-full object-contain rounded-full" />
+               <img 
+                 src="https://upload.wikimedia.org/wikipedia/th/e/e0/TNSU_Logo.png" 
+                 alt="Logo" 
+                 className="w-full h-full object-contain" 
+                 referrerPolicy="no-referrer"
+               />
             </div>
             <h1 className="text-xl font-bold tracking-tight">TNSU-REC</h1>
           </div>
@@ -129,7 +144,11 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
                       <div className="p-3 border-b bg-slate-50 flex justify-between items-center">
                          <h3 className="font-semibold text-sm text-slate-800">การแจ้งเตือน</h3>
                          {unreadCount > 0 && (
-                            <button onClick={() => { db.markAsRead(user.id); setNotifications(db.getNotifications(user.id)); }} className="text-xs text-blue-600 hover:underline">อ่านทั้งหมด</button>
+                            <button onClick={async () => { 
+                                await db.markAsRead(user.id); 
+                                const u = await db.getNotifications(user.id);
+                                setNotifications(u);
+                            }} className="text-xs text-blue-600 hover:underline">อ่านทั้งหมด</button>
                          )}
                       </div>
                       <div className="max-h-80 overflow-y-auto">

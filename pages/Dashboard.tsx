@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { db } from '../services/mockDatabase';
-import { ProposalStatus, Role } from '../types';
-import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, Calendar, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { db } from '../services/database'; // Real DB
+import { ProposalStatus, Role, Proposal } from '../types';
+import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2 } from 'lucide-react';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -10,14 +10,39 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const user = db.currentUser;
   
+  // Data State
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [loading, setLoading] = useState(true);
+
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [filterDate, setFilterDate] = useState('');
 
+  useEffect(() => {
+    async function fetchData() {
+      if (user) {
+        setLoading(true);
+        try {
+          const data = await db.getProposals(user.role, user.id);
+          // Sort by updated date desc
+          data.sort((a,b) => new Date(b.updatedDate).getTime() - new Date(a.updatedDate).getTime());
+          setProposals(data);
+        } catch (error) {
+          console.error("Failed to fetch proposals", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+    fetchData();
+  }, [user]);
+
   if (!user) return null;
 
-  const proposals = db.getProposals(user.role, user.id);
+  if (loading) {
+     return <div className="flex justify-center items-center h-64 text-slate-400"><Loader2 className="animate-spin mr-2"/> กำลังโหลดข้อมูล...</div>;
+  }
 
   // Stats Logic (Based on ALL proposals, independent of filter)
   const stats = {

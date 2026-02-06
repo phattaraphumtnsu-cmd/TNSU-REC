@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { db } from '../services/mockDatabase';
+import { db } from '../services/database';
 
 const UserProfile: React.FC = () => {
   const user = db.currentUser;
@@ -36,7 +36,7 @@ const UserProfile: React.FC = () => {
                </div>
             </div>
             <div className="mt-8">
-               <button className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">บันทึกการเปลี่ยนแปลง</button>
+               <button className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 opacity-50 cursor-not-allowed" disabled>บันทึกการเปลี่ยนแปลง (ติดต่อ Admin เพื่อแก้ไข)</button>
             </div>
          </div>
        ) : (
@@ -62,7 +62,7 @@ const UserProfile: React.FC = () => {
             <div className="mt-6">
                 <textarea className="w-full border p-3 rounded" placeholder="ข้อเสนอแนะเพิ่มเติม..." rows={3}></textarea>
             </div>
-            <button className="mt-4 bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700" onClick={() => alert('ขอบคุณสำหรับการประเมิน')}>ส่งแบบประเมิน</button>
+            <button className="mt-4 bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700" onClick={() => alert('ขอบคุณสำหรับการประเมิน (Mock)')}>ส่งแบบประเมิน</button>
          </div>
        )}
     </div>

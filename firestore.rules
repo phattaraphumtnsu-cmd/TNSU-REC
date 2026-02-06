@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================================
+    // Helper Functions
+    // ==========================================================
+
+    // ตรวจสอบว่าผู้ใช้ล็อกอินอยู่หรือไม่
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // ดึงข้อมูล User Profile ของผู้ที่กำลังร้องขอ
+    // หมายเหตุ: การใช้ get() จะนับเป็น 1 Read ใน Firestore
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // ตรวจสอบ Role ของผู้ใช้งาน
+    function hasRole(role) {
+      return isSignedIn() && getUserData().role == role;
+    }
+
+    // ตรวจสอบว่าเป็น Admin หรือไม่
+    function isAdmin() {
+      return hasRole('ADMIN');
+    }
+
+    // ==========================================================
+    // Collection Rules
+    // ==========================================================
+
+    // --- Users Collection ---
+    // เก็บข้อมูลผู้ใช้งาน (Profile)
+    match /users/{userId} {
+      // อนุญาตให้อ่านได้ถ้าล็อกอินแล้ว (จำเป็นสำหรับการเลือก Advisor หรือดูรายชื่อ)
+      allow read: if isSignedIn();
+      
+      // อนุญาตให้แก้ไขได้เฉพาะเจ้าของบัญชี หรือ Admin
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // --- Proposals Collection ---
+    // เก็บข้อมูลโครงการวิจัย
+    match /proposals/{proposalId} {
+      
+      // การอ่าน (Read):
+      // 1. Admin อ่านได้ทั้งหมด
+      // 2. ผู้วิจัย (Researcher) อ่านได้เฉพาะของตัวเอง
+      // 3. ที่ปรึกษา (Advisor) อ่านได้เฉพาะโครงการที่ตนเองเป็นที่ปรึกษา
+      // 4. กรรมการ (Reviewer) อ่านได้เฉพาะโครงการที่ตนเองถูกระบุใน array 'reviewers'
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.researcherId == request.auth.uid ||
+        resource.data.advisorId == request.auth.uid ||
+        request.auth.uid in resource.data.reviewers
+      );
+
+      // การสร้าง (Create):
+      // ใครก็ได้ที่ล็อกอินแล้ว (โดยปกติจะเป็น Researcher)
+      allow create: if isSignedIn();
+
+      // การแก้ไข (Update):
+      // อนุญาตให้ผู้ที่มีส่วนเกี่ยวข้องแก้ไขได้
+      // (ในระดับ Production อาจต้องจำกัด Field ที่แก้ไขได้แยกตาม Role เพิ่มเติม)
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.researcherId == request.auth.uid || // ผู้วิจัยแก้ไข (เช่น ส่ง Revision)
+        resource.data.advisorId == request.auth.uid ||    // ที่ปรึกษาอนุมัติ
+        request.auth.uid in resource.data.reviewers       // กรรมการส่งผลประเมิน
+      );
+    }
+
+    // --- Notifications Collection ---
+    // เก็บการแจ้งเตือน
+    match /notifications/{notificationId} {
+      // อ่าน: เจ้าของแจ้งเตือนเท่านั้น
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      // สร้าง: ใครก็ได้ (เพื่อให้ระบบ Client-side ส่งแจ้งเตือนหาคนอื่นได้ตาม Workflow)
+      allow create: if isSignedIn();
+
+      // แก้ไข: เจ้าของเท่านั้น (สำหรับ Mark as read)
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

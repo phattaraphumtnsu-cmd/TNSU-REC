@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { db } from '../services/mockDatabase';
+import { db } from '../services/database';
 import { ArrowLeft, BookOpen, UserPlus, FileText, CheckCircle, Shield, AlertCircle, HelpCircle } from 'lucide-react';
 
 interface UserManualProps {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Auth from './pages/Auth';
@@ -8,28 +9,39 @@ import Reports from './pages/Reports';
 import UserProfile from './pages/UserProfile';
 import UserManagement from './pages/UserManagement';
 import UserManual from './pages/UserManual';
-import { db } from './services/mockDatabase';
+import CertificateView from './pages/CertificateView';
+import { db } from './services/database';
+import { User } from './types';
+import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
-  // Initialize state by trying to restore session immediately
   const [currentPage, setCurrentPage] = useState('auth');
   const [pageParams, setPageParams] = useState<any>({});
-  const [user, setUser] = useState(() => db.restoreSession() || db.currentUser);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Check session on mount to redirect if already logged in
+  // Monitor Session (Mock)
   useEffect(() => {
-    if (user && currentPage === 'auth') {
-      setCurrentPage('dashboard');
-    }
-  }, [user]);
+    const checkSession = async () => {
+       const savedUser = db.restoreSession();
+       if (savedUser) {
+           setUser(savedUser);
+           if (currentPage === 'auth') {
+               setCurrentPage('dashboard');
+           }
+       }
+       setLoading(false);
+    };
+    checkSession();
+  }, [currentPage]);
 
-  const handleLogin = () => {
-    setUser(db.currentUser);
+  const handleLogin = (loggedInUser: User) => {
+    setUser(loggedInUser);
     setCurrentPage('dashboard');
   };
 
-  const handleLogout = () => {
-    db.logout();
+  const handleLogout = async () => {
+    await db.logout();
     setUser(null);
     setCurrentPage('auth');
   };
@@ -39,18 +51,23 @@ const App: React.FC = () => {
     if (params) setPageParams(params);
   };
 
-  // Guard logic: Redirect to auth if not logged in AND not visiting a public page (manual)
-  useEffect(() => {
-    if (!user && currentPage !== 'auth' && currentPage !== 'manual') {
-      setCurrentPage('auth');
-    }
-  }, [user, currentPage]);
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-50 text-blue-600">
+        <Loader2 className="animate-spin" size={48} />
+      </div>
+    );
+  }
 
   if (currentPage === 'auth') {
     return <Auth onLogin={handleLogin} onNavigateManual={() => handleNavigate('manual')} />;
   }
+  
+  // Standalone page for printing certificate (no layout)
+  if (currentPage === 'certificate') {
+     return <CertificateView id={pageParams.id} onNavigate={handleNavigate} />;
+  }
 
-  // If viewing manual without login, wrap in a simple container or reuse Layout structure (Layout handles !user gracefully)
   return (
     <Layout onLogout={handleLogout} currentPage={currentPage} onNavigate={handleNavigate}>
       {currentPage === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}

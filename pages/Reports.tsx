@@ -1,10 +1,31 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { db } from '../services/mockDatabase';
-import { ProposalStatus, FACULTIES } from '../types';
+import { db } from '../services/database';
+import { ProposalStatus, FACULTIES, Proposal, Role } from '../types';
+import { Loader2 } from 'lucide-react';
 
 const Reports: React.FC = () => {
-  const proposals = db.proposals;
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+       setLoading(true);
+       try {
+           // Fetch all proposals if admin, or logic could be restricted. 
+           // For reports, we typically want global stats. Assuming admin role here or unrestricted read for report page.
+           const data = await db.getProposals(Role.ADMIN, 'admin_placeholder'); 
+           setProposals(data);
+       } catch (e) {
+           console.error(e);
+       } finally {
+           setLoading(false);
+       }
+    };
+    fetchData();
+  }, []);
+
+  if (loading) return <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin text-blue-600"/></div>;
 
   // Data for Charts
   const statusData = [
@@ -76,7 +97,6 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
-      {/* Satisfaction Survey Placeholder */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
          <h3 className="text-lg font-semibold mb-4">ผลการประเมินความพึงพอใจ</h3>
          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">

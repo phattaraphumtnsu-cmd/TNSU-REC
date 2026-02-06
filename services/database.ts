@@ -1,3 +1,4 @@
+
 import { Proposal, ProposalStatus, Review, ReviewType, Role, User, UserType, Vote, ProgressReport, Notification, RevisionLog } from '../types';
 
 // Initial Mock Data
@@ -63,13 +64,17 @@ class MockDatabase {
   private SESSION_KEY = 'tnsu_rec_session_uid';
 
   // Auth
-  login(email: string, pass: string): User | undefined {
+  async login(email: string, pass: string): Promise<User> {
     const user = this.users.find(u => u.email === email && u.password === pass);
-    if (user) this.currentUser = user;
-    return user;
+    if (user) {
+        this.currentUser = user;
+        this.saveSession(user.id);
+        return user;
+    }
+    throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
   }
 
-  logout() {
+  async logout() {
     this.currentUser = null;
     this.clearSession();
   }
@@ -79,10 +84,10 @@ class MockDatabase {
     return this.users.some(u => u.email === email);
   }
 
-  resetPassword(email: string, newPass: string): boolean {
+  async resetPassword(email: string): Promise<boolean> {
     const user = this.users.find(u => u.email === email);
     if (user) {
-      user.password = newPass;
+      user.password = 'password123'; // Reset to default
       return true;
     }
     return false;
@@ -121,11 +126,15 @@ class MockDatabase {
     }
   }
 
-  register(user: User) {
-    this.users.push({ ...user, id: `u${this.users.length + 1}` });
+  async register(user: User, password?: string): Promise<User> {
+    const newUser = { ...user, id: `u${this.users.length + 1}`, password: password || 'password' };
+    this.users.push(newUser);
+    this.currentUser = newUser;
+    this.saveSession(newUser.id);
+    return newUser;
   }
 
-  updateUser(id: string, updates: Partial<User>) {
+  async updateUser(id: string, updates: Partial<User>) {
     const index = this.users.findIndex(u => u.id === id);
     if (index !== -1) {
       this.users[index] = { ...this.users[index], ...updates };
@@ -134,8 +143,12 @@ class MockDatabase {
     return false;
   }
 
-  deleteUser(id: string) {
+  async deleteUser(id: string) {
     this.users = this.users.filter(u => u.id !== id);
+  }
+  
+  async getUsers(): Promise<User[]> {
+    return this.users;
   }
 
   // Notifications
@@ -150,18 +163,18 @@ class MockDatabase {
     });
   }
 
-  getNotifications(userId: string) {
+  async getNotifications(userId: string) {
     return this.notifications.filter(n => n.userId === userId);
   }
 
-  markAsRead(userId: string) {
+  async markAsRead(userId: string) {
     this.notifications = this.notifications.map(n => 
       n.userId === userId ? { ...n, isRead: true } : n
     );
   }
 
   // Proposals
-  getProposals(role: Role, userId: string): Proposal[] {
+  async getProposals(role: Role, userId: string): Promise<Proposal[]> {
     if (role === Role.ADMIN) return this.proposals;
     if (role === Role.REVIEWER) return this.proposals.filter(p => p.reviewers.includes(userId));
     if (role === Role.ADVISOR) return this.proposals.filter(p => p.advisorId === userId);
@@ -169,11 +182,11 @@ class MockDatabase {
     return [];
   }
 
-  getProposalById(id: string): Proposal | undefined {
+  async getProposalById(id: string): Promise<Proposal | undefined> {
     return this.proposals.find(p => p.id === id);
   }
 
-  createProposal(p: Partial<Proposal>) {
+  async createProposal(p: Partial<Proposal>): Promise<Proposal> {
     const newProposal: Proposal = {
       id: `p${this.proposals.length + 1}`,
       revisionCount: 0,
@@ -207,7 +220,7 @@ class MockDatabase {
     return newProposal;
   }
 
-  updateProposal(id: string, updates: Partial<Proposal>) {
+  async updateProposal(id: string, updates: Partial<Proposal>) {
     const index = this.proposals.findIndex(p => p.id === id);
     if (index !== -1) {
       const oldStatus = this.proposals[index].status;
@@ -246,8 +259,8 @@ class MockDatabase {
     }
   }
 
-  submitRevision(proposalId: string, revisionLink: string, revisionNoteLink: string) {
-    const proposal = this.getProposalById(proposalId);
+  async submitRevision(proposalId: string, revisionLink: string, revisionNoteLink: string) {
+    const proposal = await this.getProposalById(proposalId);
     if (!proposal) return;
 
     const newRevisionCount = (proposal.revisionCount || 0) + 1;
@@ -261,7 +274,7 @@ class MockDatabase {
 
     const newHistory = [...(proposal.revisionHistory || []), log];
 
-    this.updateProposal(proposalId, {
+    await this.updateProposal(proposalId, {
       status: ProposalStatus.PENDING_ADMIN_CHECK,
       revisionLink: revisionLink,
       revisionNoteLink: revisionNoteLink,
@@ -276,21 +289,21 @@ class MockDatabase {
   }
 
   // Admin Actions
-  assignReviewers(proposalId: string, reviewerIds: string[]) {
-    this.updateProposal(proposalId, { 
+  async assignReviewers(proposalId: string, reviewerIds: string[]) {
+    await this.updateProposal(proposalId, { 
       reviewers: reviewerIds, 
       status: ProposalStatus.IN_REVIEW 
     });
     // Notify Reviewers
-    reviewerIds.forEach(rid => {
-       const proposal = this.getProposalById(proposalId);
+    reviewerIds.forEach(async rid => {
+       const proposal = await this.getProposalById(proposalId);
        this.sendNotification(rid, `คุณได้รับมอบหมายให้พิจารณาโครงการ: ${proposal?.titleTh}`, `proposal?id=${proposalId}`);
     });
   }
 
   // Reviewer Actions
-  submitReview(proposalId: string, review: Review) {
-    const proposal = this.getProposalById(proposalId);
+  async submitReview(proposalId: string, review: Review) {
+    const proposal = await this.getProposalById(proposalId);
     if (!proposal) return;
 
     const existingReviewIndex = proposal.reviews.findIndex(r => r.reviewerId === review.reviewerId);
@@ -300,7 +313,7 @@ class MockDatabase {
     } else {
       newReviews.push(review);
     }
-    this.updateProposal(proposalId, { reviews: newReviews });
+    await this.updateProposal(proposalId, { reviews: newReviews });
 
     // Notify Admin
     this.users.filter(u => u.role === Role.ADMIN).forEach(admin => {
@@ -309,8 +322,8 @@ class MockDatabase {
   }
 
   // Post Approval Actions
-  submitProgressReport(proposalId: string, report: Partial<ProgressReport>) {
-     const proposal = this.getProposalById(proposalId);
+  async submitProgressReport(proposalId: string, report: Partial<ProgressReport>) {
+     const proposal = await this.getProposalById(proposalId);
      if (!proposal) return;
      
      const newReport: ProgressReport = {
@@ -322,7 +335,7 @@ class MockDatabase {
      };
      
      const updatedReports = [...(proposal.progressReports || []), newReport];
-     this.updateProposal(proposalId, { progressReports: updatedReports });
+     await this.updateProposal(proposalId, { progressReports: updatedReports });
 
      // Notify Admin
      this.users.filter(u => u.role === Role.ADMIN).forEach(admin => {
@@ -330,8 +343,8 @@ class MockDatabase {
      });
   }
 
-  acknowledgeProgressReport(proposalId: string, reportId: string, adminName: string) {
-      const proposal = this.getProposalById(proposalId);
+  async acknowledgeProgressReport(proposalId: string, reportId: string, adminName: string) {
+      const proposal = await this.getProposalById(proposalId);
       if (!proposal) return;
 
       const updatedReports = proposal.progressReports.map(r => {
@@ -344,11 +357,11 @@ class MockDatabase {
          }
          return r;
       });
-      this.updateProposal(proposalId, { progressReports: updatedReports });
+      await this.updateProposal(proposalId, { progressReports: updatedReports });
   }
 
   // Utility
-  getUsersByRole(role: Role) {
+  async getUsersByRole(role: Role) {
     return this.users.filter(u => u.role === role);
   }
 }

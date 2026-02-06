@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { db } from '../services/mockDatabase';
-import { ProposalStatus, ReviewType, Role, UserType } from '../types';
-import { ArrowLeft, UploadCloud } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { db } from '../services/database';
+import { ProposalStatus, ReviewType, Role, UserType, User } from '../types';
+import { ArrowLeft, UploadCloud, Loader2 } from 'lucide-react';
 
 interface SubmissionFormProps {
   onNavigate: (page: string) => void;
@@ -9,6 +9,8 @@ interface SubmissionFormProps {
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
   const user = db.currentUser;
+  const [loading, setLoading] = useState(false);
+  const [advisors, setAdvisors] = useState<User[]>([]);
   
   const [formData, setFormData] = useState({
     titleTh: '',
@@ -22,11 +24,18 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
     paymentSlipLink: ''
   });
 
+  // Fetch Advisors on load
+  useEffect(() => {
+    const fetchAdvisors = async () => {
+        const data = await db.getUsersByRole(Role.ADVISOR);
+        setAdvisors(data);
+    };
+    fetchAdvisors();
+  }, []);
+
   if (!user || user.role !== Role.RESEARCHER) return <div className="text-red-500">Access Denied</div>;
 
-  const advisors = db.getUsersByRole(Role.ADVISOR);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validation
@@ -43,25 +52,32 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
        return;
     }
 
-    // Create
-    const advisor = advisors.find(a => a.id === formData.advisorId);
-    
-    db.createProposal({
-      titleTh: formData.titleTh,
-      titleEn: formData.titleEn,
-      type: formData.type,
-      fileLink: formData.fileLink,
-      paymentSlipLink: formData.paymentSlipLink,
-      researcherId: user.id,
-      researcherName: user.name,
-      faculty: user.faculty,
-      campus: user.campus,
-      advisorId: formData.advisorId,
-      advisorName: advisor?.name,
-    });
+    setLoading(true);
+    try {
+        const advisor = advisors.find(a => a.id === formData.advisorId);
+        
+        await db.createProposal({
+          titleTh: formData.titleTh,
+          titleEn: formData.titleEn,
+          type: formData.type,
+          fileLink: formData.fileLink,
+          paymentSlipLink: formData.paymentSlipLink,
+          researcherId: user.id,
+          researcherName: user.name,
+          faculty: user.faculty,
+          campus: user.campus,
+          advisorId: formData.advisorId,
+          advisorName: advisor?.name,
+        });
 
-    alert('ยื่นคำขอสำเร็จ สถานะของคุณจะถูกอัพเดทในหน้าแดชบอร์ด');
-    onNavigate('dashboard');
+        alert('ยื่นคำขอสำเร็จ สถานะของคุณจะถูกอัพเดทในหน้าแดชบอร์ด');
+        onNavigate('dashboard');
+    } catch (err) {
+        console.error(err);
+        alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (
@@ -184,7 +200,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
           </div>
 
           <div className="flex justify-end pt-4">
-             <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg shadow-lg font-medium transition-transform active:scale-95">
+             <button disabled={loading} type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg shadow-lg font-medium transition-transform active:scale-95 flex items-center gap-2">
+               {loading && <Loader2 className="animate-spin" size={18} />}
                ยืนยันส่งคำขอ
              </button>
           </div>
