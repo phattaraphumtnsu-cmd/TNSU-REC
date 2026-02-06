@@ -1,0 +1,5 @@
+{
+  "name": "TNSU-REC System",
+  "description": "Human Research Ethics Committee Management System for Thailand National Sports University. Handles submission, review, approval workflows, and certification issuance.",
+  "requestFramePermissions": []
+}
