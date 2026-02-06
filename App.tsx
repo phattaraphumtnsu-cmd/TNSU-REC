@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Auth from './pages/Auth';
@@ -11,6 +10,8 @@ import UserManagement from './pages/UserManagement';
 import UserManual from './pages/UserManual';
 import CertificateView from './pages/CertificateView';
 import { db } from './services/database';
+import { auth } from './firebaseConfig';
+import { onAuthStateChanged } from 'firebase/auth';
 import { User } from './types';
 import { Loader2 } from 'lucide-react';
 
@@ -20,29 +21,46 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Monitor Session (Mock)
+  // Monitor Firebase Auth State
   useEffect(() => {
-    const checkSession = async () => {
-       const savedUser = db.restoreSession();
-       if (savedUser) {
-           setUser(savedUser);
+    // This listener automatically handles session persistence
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
+      try {
+        if (firebaseUser) {
+           // When Firebase Auth state changes, sync with Firestore User Data
+           const appUser = await db.syncCurrentUser(firebaseUser);
+           setUser(appUser);
            if (currentPage === 'auth') {
-               setCurrentPage('dashboard');
+              setCurrentPage('dashboard');
            }
-       }
-       setLoading(false);
-    };
-    checkSession();
+        } else {
+           setUser(null);
+           if (currentPage !== 'auth' && currentPage !== 'manual' && currentPage !== 'certificate') {
+              setCurrentPage('auth');
+           }
+        }
+      } catch (error) {
+        console.error("Auth sync error:", error);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, [currentPage]);
 
   const handleLogin = (loggedInUser: User) => {
+    // With onAuthStateChanged, state updates handled automatically, 
+    // but we can set it here for immediate feedback if needed.
     setUser(loggedInUser);
     setCurrentPage('dashboard');
   };
 
   const handleLogout = async () => {
     await db.logout();
-    setUser(null);
+    // State updates handled by onAuthStateChanged
     setCurrentPage('auth');
   };
 

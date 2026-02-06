@@ -1,194 +1,173 @@
+import { 
+  collection, 
+  doc, 
+  getDoc, 
+  getDocs, 
+  addDoc, 
+  setDoc,
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where,
+  writeBatch,
+  orderBy
+} from 'firebase/firestore';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  sendPasswordResetEmail,
+  User as FirebaseUser 
+} from 'firebase/auth';
+import { auth, dbFirestore } from '../firebaseConfig';
+import { Proposal, ProposalStatus, Review, Role, User, Notification, ProgressReport, RevisionLog } from '../types';
 
-import { Proposal, ProposalStatus, Review, ReviewType, Role, User, UserType, Vote, ProgressReport, Notification, RevisionLog } from '../types';
-
-// Initial Mock Data
-const INITIAL_USERS: User[] = [
-  { id: 'u1', name: 'Admin Staff', email: 'admin_rec@tnsu.ac.th', role: Role.ADMIN, password: 'admin_rec1234' },
-  { id: 'u2', name: 'Dr. Somchai Reviewer', email: 'rev1@tnsu.ac.th', role: Role.REVIEWER, password: 'rec1234', campus: 'เชียงใหม่' },
-  { id: 'u3', name: 'Ajarn Somsri Reviewer', email: 'rev2@tnsu.ac.th', role: Role.REVIEWER, password: 'rec1234', campus: 'กรุงเทพ' },
-  { id: 'u4', name: 'Dr. Advisor One', email: 'adv1@tnsu.ac.th', role: Role.ADVISOR, password: 'password', campus: 'เชียงใหม่', faculty: 'คณะศึกษาศาสตร์' },
-  { id: 'u5', name: 'Student A', email: 'stu1@tnsu.ac.th', role: Role.RESEARCHER, type: UserType.STUDENT, password: 'password', campus: 'เชียงใหม่', faculty: 'คณะศึกษาศาสตร์' },
-  { id: 'u6', name: 'Ajarn Researcher', email: 'res1@tnsu.ac.th', role: Role.RESEARCHER, type: UserType.STAFF, password: 'password', campus: 'ชลบุรี', faculty: 'คณะวิทยาศาสตร์การกีฬาและสุขภาพ' },
-];
-
-const INITIAL_PROPOSALS: Proposal[] = [
-  {
-    id: 'p1',
-    code: 'TNSU-EDU 001/2568',
-    titleTh: 'การศึกษาผลของการฝึกตาราง 9 ช่อง',
-    titleEn: 'Effect of 9 Square Training',
-    researcherId: 'u5',
-    researcherName: 'Student A',
-    advisorId: 'u4',
-    advisorName: 'Dr. Advisor One',
-    type: ReviewType.EXPEDITED,
-    campus: 'เชียงใหม่',
-    faculty: 'คณะศึกษาศาสตร์',
-    fileLink: 'http://drive.google.com/doc1',
-    status: ProposalStatus.IN_REVIEW,
-    submissionDate: '2025-01-10',
-    updatedDate: '2025-01-12',
-    reviewers: ['u2', 'u3'],
-    reviews: [],
-    revisionCount: 0,
-    revisionHistory: [],
-    progressReports: []
-  },
-  {
-    id: 'p2',
-    titleTh: 'การพัฒนาสมรรถภาพทางกาย',
-    titleEn: 'Physical Fitness Development',
-    researcherId: 'u6',
-    researcherName: 'Ajarn Researcher',
-    type: ReviewType.EXEMPTION,
-    campus: 'ชลบุรี',
-    faculty: 'คณะวิทยาศาสตร์การกีฬาและสุขภาพ',
-    fileLink: 'http://drive.google.com/doc2',
-    paymentSlipLink: 'http://drive.google.com/slip1',
-    status: ProposalStatus.PENDING_ADMIN_CHECK,
-    submissionDate: '2025-01-15',
-    updatedDate: '2025-01-15',
-    reviewers: [],
-    reviews: [],
-    revisionCount: 0,
-    revisionHistory: [],
-    progressReports: []
-  }
-];
-
-class MockDatabase {
-  users: User[] = [...INITIAL_USERS];
-  proposals: Proposal[] = [...INITIAL_PROPOSALS];
-  notifications: Notification[] = []; // In-memory notifications
+class DatabaseService {
   currentUser: User | null = null;
-  private SESSION_KEY = 'tnsu_rec_session_uid';
 
-  // Auth
+  // --- Auth Methods ---
+
   async login(email: string, pass: string): Promise<User> {
-    const user = this.users.find(u => u.email === email && u.password === pass);
-    if (user) {
-        this.currentUser = user;
-        this.saveSession(user.id);
-        return user;
+    // 1. Login with Firebase Auth
+    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+    const fbUser = userCredential.user;
+    
+    // 2. Fetch extra user data (Role, Faculty) from Firestore 'users' collection
+    const userDocRef = doc(dbFirestore, 'users', fbUser.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists()) {
+      const userData = userDoc.data() as User;
+      this.currentUser = { ...userData, id: fbUser.uid };
+      return this.currentUser;
+    } else {
+      throw new Error('ไม่พบข้อมูลผู้ใช้งานในระบบฐานข้อมูล');
     }
-    throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
   }
 
   async logout() {
+    await signOut(auth);
     this.currentUser = null;
-    this.clearSession();
   }
 
-  // Password Management
-  checkUserExists(email: string): boolean {
-    return this.users.some(u => u.email === email);
-  }
-
-  async resetPassword(email: string): Promise<boolean> {
-    const user = this.users.find(u => u.email === email);
-    if (user) {
-      user.password = 'password123'; // Reset to default
-      return true;
+  // Used by App.tsx to sync state when page reloads or auth state changes
+  async syncCurrentUser(fbUser: FirebaseUser | null): Promise<User | null> {
+    if (!fbUser) {
+      this.currentUser = null;
+      return null;
     }
-    return false;
-  }
-
-  // Session Persistence (Remember Me)
-  saveSession(userId: string) {
     try {
-      localStorage.setItem(this.SESSION_KEY, userId);
-    } catch (e) {
-      console.error('Local Storage unavailable');
-    }
-  }
-
-  restoreSession(): User | null {
-    try {
-      const storedId = localStorage.getItem(this.SESSION_KEY);
-      if (storedId) {
-        const user = this.users.find(u => u.id === storedId);
-        if (user) {
-          this.currentUser = user;
-          return user;
-        }
+      const userDocRef = doc(dbFirestore, 'users', fbUser.uid);
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        this.currentUser = { ...(userDoc.data() as User), id: fbUser.uid };
+        return this.currentUser;
       }
     } catch (e) {
-      console.error('Local Storage unavailable');
+      console.error("Error syncing user:", e);
     }
     return null;
   }
 
-  clearSession() {
-    try {
-      localStorage.removeItem(this.SESSION_KEY);
-    } catch (e) {
-      console.error('Local Storage unavailable');
-    }
-  }
+  async register(user: Omit<User, 'id'>, password: string): Promise<User> {
+    // 1. Create Auth User
+    const userCredential = await createUserWithEmailAndPassword(auth, user.email, password);
+    const uid = userCredential.user.uid;
 
-  async register(user: User, password?: string): Promise<User> {
-    const newUser = { ...user, id: `u${this.users.length + 1}`, password: password || 'password' };
-    this.users.push(newUser);
+    // 2. Save Profile to Firestore
+    const newUser: User = { ...user, id: uid };
+    // Remove password from object before saving to Firestore
+    const { password: _, ...userToSave } = newUser as any; 
+    
+    await setDoc(doc(dbFirestore, 'users', uid), userToSave);
+    
     this.currentUser = newUser;
-    this.saveSession(newUser.id);
     return newUser;
   }
 
-  async updateUser(id: string, updates: Partial<User>) {
-    const index = this.users.findIndex(u => u.id === id);
-    if (index !== -1) {
-      this.users[index] = { ...this.users[index], ...updates };
+  async resetPassword(email: string): Promise<boolean> {
+    try {
+      await sendPasswordResetEmail(auth, email);
       return true;
+    } catch (e) {
+      console.error("Reset password failed:", e);
+      return false;
     }
-    return false;
+  }
+
+  // Legacy mock method - in Firebase this is handled by syncCurrentUser/onAuthStateChanged
+  restoreSession(): User | null {
+    return this.currentUser;
+  }
+
+  // --- User Management ---
+
+  async getUsers(): Promise<User[]> {
+    const q = query(collection(dbFirestore, 'users'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+  }
+
+  async getUsersByRole(role: Role): Promise<User[]> {
+    const q = query(collection(dbFirestore, 'users'), where('role', '==', role));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+  }
+
+  async updateUser(id: string, updates: Partial<User>) {
+    const userRef = doc(dbFirestore, 'users', id);
+    await updateDoc(userRef, updates);
   }
 
   async deleteUser(id: string) {
-    this.users = this.users.filter(u => u.id !== id);
-  }
-  
-  async getUsers(): Promise<User[]> {
-    return this.users;
+    // Note: This only deletes Firestore data. Auth deletion requires Admin SDK.
+    await deleteDoc(doc(dbFirestore, 'users', id));
   }
 
-  // Notifications
-  sendNotification(userId: string, message: string, link?: string) {
-    this.notifications.unshift({
-      id: `n-${Date.now()}-${Math.random()}`,
-      userId,
-      message,
-      link,
-      isRead: false,
-      createdAt: new Date().toISOString()
-    });
-  }
+  // --- Proposals ---
 
-  async getNotifications(userId: string) {
-    return this.notifications.filter(n => n.userId === userId);
-  }
-
-  async markAsRead(userId: string) {
-    this.notifications = this.notifications.map(n => 
-      n.userId === userId ? { ...n, isRead: true } : n
-    );
-  }
-
-  // Proposals
   async getProposals(role: Role, userId: string): Promise<Proposal[]> {
-    if (role === Role.ADMIN) return this.proposals;
-    if (role === Role.REVIEWER) return this.proposals.filter(p => p.reviewers.includes(userId));
-    if (role === Role.ADVISOR) return this.proposals.filter(p => p.advisorId === userId);
-    if (role === Role.RESEARCHER) return this.proposals.filter(p => p.researcherId === userId);
-    return [];
+    const proposalsRef = collection(dbFirestore, 'proposals');
+    let q;
+
+    if (role === Role.ADMIN) {
+      q = query(proposalsRef);
+    } else if (role === Role.REVIEWER) {
+      q = query(proposalsRef, where('reviewers', 'array-contains', userId));
+    } else if (role === Role.ADVISOR) {
+      q = query(proposalsRef, where('advisorId', '==', userId));
+    } else if (role === Role.RESEARCHER) {
+      q = query(proposalsRef, where('researcherId', '==', userId));
+    } else {
+      return [];
+    }
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Proposal));
   }
 
   async getProposalById(id: string): Promise<Proposal | undefined> {
-    return this.proposals.find(p => p.id === id);
+    if (!id) return undefined;
+    const docRef = doc(dbFirestore, 'proposals', id);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as Proposal;
+    }
+    return undefined;
   }
 
   async createProposal(p: Partial<Proposal>): Promise<Proposal> {
-    const newProposal: Proposal = {
-      id: `p${this.proposals.length + 1}`,
+    const proposalsRef = collection(dbFirestore, 'proposals');
+    
+    // Generate Code
+    const year = new Date().getFullYear() + 543;
+    const facCode = p.faculty?.includes('วิทยาศาสตร์') ? 'SCI' : p.faculty?.includes('ศิลปศาสตร์') ? 'ART' : 'EDU';
+    const uniqueSuffix = Date.now().toString().slice(-4);
+    const tempCode = `TNSU-${facCode} ${uniqueSuffix}/${year}`;
+
+    const newProposalData = {
+      ...p,
+      code: tempCode,
       revisionCount: 0,
       revisionHistory: [],
       reviews: [],
@@ -197,173 +176,174 @@ class MockDatabase {
       status: p.advisorId ? ProposalStatus.PENDING_ADVISOR : ProposalStatus.PENDING_ADMIN_CHECK,
       submissionDate: new Date().toISOString().split('T')[0],
       updatedDate: new Date().toISOString().split('T')[0],
-      ...p as any
     };
+
+    const docRef = await addDoc(proposalsRef, newProposalData);
     
-    // Generate temporary code
-    const year = new Date().getFullYear() + 543;
-    const facCode = p.faculty?.includes('วิทยาศาสตร์') ? 'SCI' : p.faculty?.includes('ศิลปศาสตร์') ? 'ART' : 'EDU';
-    newProposal.code = `TNSU-${facCode} ${String(this.proposals.length + 1).padStart(3, '0')}/${year}`;
-
-    this.proposals.push(newProposal);
-
-    // Notify Advisor if exists
-    if (newProposal.advisorId) {
-      this.sendNotification(newProposal.advisorId, `มีคำขอใหม่จากนักศึกษา: ${newProposal.titleTh}`, `proposal?id=${newProposal.id}`);
+    // Notifications
+    if (p.advisorId) {
+      this.sendNotification(p.advisorId, `มีคำขอใหม่จากนักศึกษา: ${p.titleTh}`, `proposal?id=${docRef.id}`);
     } else {
-      // Notify all admins
-      this.users.filter(u => u.role === Role.ADMIN).forEach(admin => {
-        this.sendNotification(admin.id, `มีคำขอใหม่: ${newProposal.titleTh}`, `proposal?id=${newProposal.id}`);
-      });
+      this.notifyAdmins(`มีคำขอใหม่: ${p.titleTh}`, `proposal?id=${docRef.id}`);
     }
 
-    return newProposal;
+    return { id: docRef.id, ...(newProposalData as any) };
   }
 
   async updateProposal(id: string, updates: Partial<Proposal>) {
-    const index = this.proposals.findIndex(p => p.id === id);
-    if (index !== -1) {
-      const oldStatus = this.proposals[index].status;
-      const currentProposal = this.proposals[index];
-      
-      // Auto-populate ApprovalDetail if status becomes APPROVED or WAITING_CERT
-      if (
-        (updates.status === ProposalStatus.APPROVED || updates.status === ProposalStatus.WAITING_CERT) && 
-        !updates.approvalDetail && 
-        !currentProposal.approvalDetail
-      ) {
-         const today = new Date();
-         const nextYear = new Date(today);
-         nextYear.setFullYear(today.getFullYear() + 1);
-         
-         const certNum = currentProposal.code ? currentProposal.code.replace('TNSU-', '') : `REC-${Date.now().toString().slice(-6)}`;
-         
-         updates.approvalDetail = {
-             certificateNumber: certNum,
-             issuanceDate: today.toISOString().split('T')[0],
-             expiryDate: nextYear.toISOString().split('T')[0]
-         };
+    const proposalRef = doc(dbFirestore, 'proposals', id);
+    const currentP = await this.getProposalById(id);
+    if (!currentP) return;
 
-         // Maintain legacy fields
-         updates.certNumber = certNum;
-         updates.approvalDate = today.toISOString().split('T')[0];
-      }
+    // Logic to generate Certificate Number automatically upon approval
+    if ((updates.status === ProposalStatus.APPROVED || updates.status === ProposalStatus.WAITING_CERT)) {
+        if(!updates.approvalDetail && !currentP.approvalDetail) {
+            const today = new Date();
+            const nextYear = new Date(today);
+            nextYear.setFullYear(today.getFullYear() + 1);
+            
+            const certNum = `REC-${Date.now().toString().slice(-6)}`;
+            
+            updates.approvalDetail = {
+                 certificateNumber: certNum,
+                 issuanceDate: today.toISOString().split('T')[0],
+                 expiryDate: nextYear.toISOString().split('T')[0]
+             };
+             // Legacy fields support
+             updates.certNumber = certNum;
+             updates.approvalDate = today.toISOString().split('T')[0];
+        }
+    }
 
-      this.proposals[index] = { ...this.proposals[index], ...updates, updatedDate: new Date().toISOString().split('T')[0] };
-      const updatedP = this.proposals[index];
+    await updateDoc(proposalRef, {
+      ...updates,
+      updatedDate: new Date().toISOString().split('T')[0]
+    });
 
-      // Notify Researcher on Status Change
-      if (oldStatus !== updatedP.status && updatedP.researcherId) {
-        this.sendNotification(updatedP.researcherId, `สถานะโครงการเปลี่ยนเป็น: ${updatedP.status}`, `proposal?id=${updatedP.id}`);
-      }
+    // Notify Researcher if status changes
+    if (updates.status && updates.status !== currentP.status && currentP.researcherId) {
+        this.sendNotification(currentP.researcherId, `สถานะโครงการเปลี่ยนเป็น: ${updates.status}`, `proposal?id=${id}`);
     }
   }
 
-  async submitRevision(proposalId: string, revisionLink: string, revisionNoteLink: string) {
-    const proposal = await this.getProposalById(proposalId);
-    if (!proposal) return;
-
-    const newRevisionCount = (proposal.revisionCount || 0) + 1;
-    const log: RevisionLog = {
-      revisionCount: newRevisionCount,
-      submittedDate: new Date().toISOString().split('T')[0],
-      fileLink: revisionLink,
-      noteLink: revisionNoteLink,
-      adminFeedbackSnapshot: proposal.consolidatedFeedback
-    };
-
-    const newHistory = [...(proposal.revisionHistory || []), log];
-
+  async assignReviewers(proposalId: string, reviewerIds: string[], proposalTitle: string) {
     await this.updateProposal(proposalId, {
-      status: ProposalStatus.PENDING_ADMIN_CHECK,
-      revisionLink: revisionLink,
-      revisionNoteLink: revisionNoteLink,
-      revisionCount: newRevisionCount,
-      revisionHistory: newHistory
+      reviewers: reviewerIds,
+      status: ProposalStatus.IN_REVIEW
     });
-
-    // Notify Admins
-    this.users.filter(u => u.role === Role.ADMIN).forEach(admin => {
-      this.sendNotification(admin.id, `มีการส่งแก้ไขโครงการ: ${proposal.titleTh} (ครั้งที่ ${newRevisionCount})`, `proposal?id=${proposal.id}`);
+    reviewerIds.forEach(rid => {
+       this.sendNotification(rid, `คุณได้รับมอบหมายให้พิจารณาโครงการ: ${proposalTitle}`, `proposal?id=${proposalId}`);
     });
   }
 
-  // Admin Actions
-  async assignReviewers(proposalId: string, reviewerIds: string[]) {
-    await this.updateProposal(proposalId, { 
-      reviewers: reviewerIds, 
-      status: ProposalStatus.IN_REVIEW 
-    });
-    // Notify Reviewers
-    reviewerIds.forEach(async rid => {
-       const proposal = await this.getProposalById(proposalId);
-       this.sendNotification(rid, `คุณได้รับมอบหมายให้พิจารณาโครงการ: ${proposal?.titleTh}`, `proposal?id=${proposalId}`);
-    });
-  }
-
-  // Reviewer Actions
-  async submitReview(proposalId: string, review: Review) {
-    const proposal = await this.getProposalById(proposalId);
-    if (!proposal) return;
-
-    const existingReviewIndex = proposal.reviews.findIndex(r => r.reviewerId === review.reviewerId);
-    let newReviews = [...proposal.reviews];
-    if (existingReviewIndex >= 0) {
-      newReviews[existingReviewIndex] = review;
-    } else {
-      newReviews.push(review);
-    }
-    await this.updateProposal(proposalId, { reviews: newReviews });
-
-    // Notify Admin
-    this.users.filter(u => u.role === Role.ADMIN).forEach(admin => {
-        this.sendNotification(admin.id, `กรรมการ ${review.reviewerName} ส่งผลพิจารณาโครงการ: ${proposal.titleTh}`, `proposal?id=${proposal.id}`);
-    });
-  }
-
-  // Post Approval Actions
-  async submitProgressReport(proposalId: string, report: Partial<ProgressReport>) {
-     const proposal = await this.getProposalById(proposalId);
-     if (!proposal) return;
+  async submitReview(proposalId: string, review: Review, currentReviews: Review[], proposalTitle: string) {
+     const existingIndex = currentReviews.findIndex(r => r.reviewerId === review.reviewerId);
+     let newReviews = [...currentReviews];
+     if (existingIndex >= 0) {
+        newReviews[existingIndex] = review;
+     } else {
+        newReviews.push(review);
+     }
      
-     const newReport: ProgressReport = {
-        id: `rpt-${Date.now()}`,
+     await this.updateProposal(proposalId, { reviews: newReviews });
+     this.notifyAdmins(`กรรมการ ${review.reviewerName} ส่งผลพิจารณา: ${proposalTitle}`, `proposal?id=${proposalId}`);
+  }
+
+  async submitRevision(proposalId: string, revisionLink: string, revisionNoteLink: string, currentHistory: RevisionLog[], currentCount: number, proposalTitle: string, adminFeedbackSnapshot?: string) {
+     const newCount = currentCount + 1;
+     const log: RevisionLog = {
+        revisionCount: newCount,
         submittedDate: new Date().toISOString().split('T')[0],
-        type: report.type!,
-        fileLink: report.fileLink!,
-        description: report.description
+        fileLink: revisionLink,
+        noteLink: revisionNoteLink,
+        adminFeedbackSnapshot: adminFeedbackSnapshot
      };
      
-     const updatedReports = [...(proposal.progressReports || []), newReport];
-     await this.updateProposal(proposalId, { progressReports: updatedReports });
-
-     // Notify Admin
-     this.users.filter(u => u.role === Role.ADMIN).forEach(admin => {
-        this.sendNotification(admin.id, `มีรายงานความก้าวหน้าใหม่: ${proposal.titleTh}`, `proposal?id=${proposal.id}`);
+     const newHistory = [...currentHistory, log];
+     await this.updateProposal(proposalId, {
+        status: ProposalStatus.PENDING_ADMIN_CHECK,
+        revisionLink: revisionLink,
+        revisionNoteLink: revisionNoteLink,
+        revisionCount: newCount,
+        revisionHistory: newHistory
      });
+
+     this.notifyAdmins(`มีการส่งแก้ไขโครงการ: ${proposalTitle} (ครั้งที่ ${newCount})`, `proposal?id=${proposalId}`);
   }
 
-  async acknowledgeProgressReport(proposalId: string, reportId: string, adminName: string) {
-      const proposal = await this.getProposalById(proposalId);
-      if (!proposal) return;
+  async submitProgressReport(proposalId: string, report: Partial<ProgressReport>, currentReports: ProgressReport[], proposalTitle: string) {
+      const newReport: ProgressReport = {
+          id: `rpt-${Date.now()}`,
+          submittedDate: new Date().toISOString().split('T')[0],
+          type: report.type!,
+          fileLink: report.fileLink!,
+          description: report.description
+      };
+      
+      const updatedReports = [...currentReports, newReport];
+      await this.updateProposal(proposalId, { progressReports: updatedReports });
+      
+      this.notifyAdmins(`มีรายงานความก้าวหน้าใหม่: ${proposalTitle}`, `proposal?id=${proposalId}`);
+  }
 
-      const updatedReports = proposal.progressReports.map(r => {
-         if (r.id === reportId) {
-            return {
-               ...r,
-               acknowledgedDate: new Date().toISOString().split('T')[0],
-               acknowledgedBy: adminName
-            };
-         }
-         return r;
+  async acknowledgeProgressReport(proposalId: string, reportId: string, adminName: string, currentReports: ProgressReport[]) {
+      const updatedReports = currentReports.map(r => {
+          if(r.id === reportId) {
+              return { ...r, acknowledgedDate: new Date().toISOString().split('T')[0], acknowledgedBy: adminName };
+          }
+          return r;
       });
       await this.updateProposal(proposalId, { progressReports: updatedReports });
   }
 
-  // Utility
-  async getUsersByRole(role: Role) {
-    return this.users.filter(u => u.role === role);
+  // --- Notifications ---
+
+  async sendNotification(userId: string, message: string, link?: string) {
+    const notificationsRef = collection(dbFirestore, 'notifications');
+    await addDoc(notificationsRef, {
+      userId,
+      message,
+      link,
+      isRead: false,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  async getNotifications(userId: string): Promise<Notification[]> {
+    const q = query(
+        collection(dbFirestore, 'notifications'), 
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+    );
+    try {
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+    } catch (e) {
+        // Fallback if index is missing
+        const q2 = query(collection(dbFirestore, 'notifications'), where('userId', '==', userId));
+        const qs = await getDocs(q2);
+        return qs.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    }
+  }
+
+  async markAsRead(userId: string) {
+    const q = query(collection(dbFirestore, 'notifications'), where('userId', '==', userId), where('isRead', '==', false));
+    const snapshot = await getDocs(q);
+    const batch = writeBatch(dbFirestore);
+    
+    snapshot.forEach(doc => {
+        batch.update(doc.ref, { isRead: true });
+    });
+    
+    await batch.commit();
+  }
+
+  private async notifyAdmins(message: string, link: string) {
+     const admins = await this.getUsersByRole(Role.ADMIN);
+     admins.forEach(admin => {
+        this.sendNotification(admin.id, message, link);
+     });
   }
 }
 
-export const db = new MockDatabase();
+export const db = new DatabaseService();
