@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Proposal, ProposalStatus, Role, Vote, Review, User, ReviewType, ReportType, Permission, hasPermission } from '../types';
-import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer } from 'lucide-react';
+import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info } from 'lucide-react';
 
 interface ProposalDetailProps {
   id: string;
@@ -35,6 +35,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   // Researcher Revision State
   const [revisionLink, setRevisionLink] = useState('');
   const [revisionNoteLink, setRevisionNoteLink] = useState('');
+  const [confirmRevise, setConfirmRevise] = useState(false);
 
   // Progress Report State
   const [reportType, setReportType] = useState<ReportType>(ReportType.PROGRESS_6_MONTH);
@@ -69,7 +70,18 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   const reloadProposal = async () => {
       const p = await db.getProposalById(id);
       setProposal(p);
+      // Reset local states
+      setConfirmRevise(false);
+      setRevisionLink('');
+      setRevisionNoteLink('');
   };
+
+  // Determine what feedback to show based on status
+  const isRejectedByAdmin = proposal.status === ProposalStatus.ADMIN_REJECTED;
+  const isRevisionReq = proposal.status === ProposalStatus.REVISION_REQ;
+  
+  const feedbackToShow = isRejectedByAdmin ? proposal.adminFeedback : proposal.consolidatedFeedback;
+  const feedbackFileToShow = proposal.consolidatedFileLink;
 
   // --- Actions ---
 
@@ -164,6 +176,10 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
 
   const handleResearcherRevise = async () => {
     if (!revisionLink) return alert('กรุณาใส่ลิงก์ไฟล์แก้ไข');
+    if (!confirmRevise) return alert('กรุณายืนยันการตรวจสอบความถูกต้องของข้อมูล');
+    
+    if (!window.confirm('ยืนยันการส่งข้อมูลการแก้ไข?')) return;
+
     await db.submitRevision(
         proposal.id, 
         revisionLink, 
@@ -171,10 +187,8 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
         proposal.revisionHistory || [], 
         proposal.revisionCount || 0,
         proposal.titleTh,
-        proposal.consolidatedFeedback
+        feedbackToShow // Use the specific feedback (admin or committee) being addressed
     );
-    setRevisionLink('');
-    setRevisionNoteLink('');
     alert('ส่งแก้ไขเรียบร้อย สถานะกลับสู่ "รอเจ้าหน้าที่ตรวจสอบ"');
     reloadProposal();
   };
@@ -201,11 +215,6 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
      await db.acknowledgeProgressReport(proposal.id, reportId, user.name, proposal.progressReports);
      reloadProposal();
   };
-
-  const feedbackToShow = proposal.status === ProposalStatus.ADMIN_REJECTED 
-      ? proposal.adminFeedback 
-      : proposal.consolidatedFeedback;
-  const feedbackFileToShow = proposal.consolidatedFileLink;
 
   const renderStatusBadge = () => {
     let color = 'bg-gray-100 text-gray-700';
@@ -260,6 +269,22 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Info */}
         <div className="lg:col-span-2 space-y-6">
+          
+          {/* Action Required Banner for Researcher */}
+          {hasPermission(user.role, Permission.SUBMIT_REVISION) && (isRejectedByAdmin || isRevisionReq) && (
+             <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                <AlertCircle className="text-red-600 mt-1" size={24} />
+                <div>
+                   <h3 className="font-bold text-red-800">โปรดดำเนินการแก้ไข (Action Required)</h3>
+                   <p className="text-sm text-red-700 mt-1">
+                      {isRejectedByAdmin 
+                        ? 'เจ้าหน้าที่ได้ตรวจสอบเอกสารแล้วพบว่าไม่ครบถ้วนหรือต้องแก้ไข กรุณาดูรายละเอียดด้านล่างและส่งเอกสารใหม่'
+                        : 'คณะกรรมการพิจารณาแล้วมีมติ "ให้แก้ไข" กรุณาปรับปรุงข้อมูลตามข้อเสนอแนะและส่งกลับเข้าระบบ'}
+                   </p>
+                </div>
+             </div>
+          )}
+
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
              <h3 className="font-semibold text-lg mb-4 text-slate-800 border-b pb-2">รายละเอียดโครงการ</h3>
              <div className="grid grid-cols-2 gap-4 text-sm">
@@ -281,6 +306,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                 )}
              </div>
 
+             {/* Admin/Reviewer view of Pending Revisions */}
              {(hasPermission(user.role, Permission.ASSIGN_REVIEWERS) || hasPermission(user.role, Permission.VOTE_AS_REVIEWER)) && 
                proposal.revisionLink && proposal.status === ProposalStatus.PENDING_ADMIN_CHECK && (
                 <div className="mt-6 bg-orange-50 border border-orange-200 p-4 rounded-lg animate-pulse">
@@ -313,8 +339,8 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                                 <span className="text-slate-500 text-xs">เมื่อ {rev.submittedDate}</span>
                              </div>
                              <div className="flex gap-2">
-                                <a href={rev.fileLink} target="_blank" className="text-blue-600 hover:underline text-xs">ไฟล์</a>
-                                {rev.noteLink && <a href={rev.noteLink} target="_blank" className="text-slate-600 hover:underline text-xs">บันทึก</a>}
+                                <a href={rev.fileLink} target="_blank" className="text-blue-600 hover:underline text-xs bg-white px-2 py-1 rounded border">ไฟล์แนบ</a>
+                                {rev.noteLink && <a href={rev.noteLink} target="_blank" className="text-slate-600 hover:underline text-xs bg-white px-2 py-1 rounded border">บันทึก</a>}
                              </div>
                           </div>
                        ))}
@@ -323,23 +349,25 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
              )}
           </div>
 
+          {/* Feedback & Revision Submission Section */}
           {(hasPermission(user.role, Permission.FINALIZE_DECISION) || hasPermission(user.role, Permission.SUBMIT_REVISION)) && (feedbackToShow || feedbackFileToShow) && (
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-               <div className={`${proposal.status === ProposalStatus.ADMIN_REJECTED ? 'bg-red-50 border-red-100' : 'bg-orange-50 border-orange-100'} border-b p-4`}>
-                  <h3 className={`font-semibold ${proposal.status === ProposalStatus.ADMIN_REJECTED ? 'text-red-800' : 'text-orange-800'} flex items-center gap-2`}>
-                    <AlertTriangle size={20} /> {proposal.status === ProposalStatus.ADMIN_REJECTED ? 'สิ่งที่ต้องแก้ไข (จากเจ้าหน้าที่)' : 'ข้อเสนอแนะจากคณะกรรมการ (Feedback)'}
+            <div className={`bg-white border rounded-xl shadow-sm overflow-hidden ${isRejectedByAdmin ? 'border-red-200 ring-2 ring-red-50' : 'border-orange-200'}`}>
+               <div className={`${isRejectedByAdmin ? 'bg-red-50 border-red-100' : 'bg-orange-50 border-orange-100'} border-b p-4`}>
+                  <h3 className={`font-semibold ${isRejectedByAdmin ? 'text-red-800' : 'text-orange-800'} flex items-center gap-2`}>
+                    <AlertTriangle size={20} /> 
+                    {isRejectedByAdmin ? 'สิ่งที่ต้องแก้ไข (จากเจ้าหน้าที่)' : 'ข้อเสนอแนะจากคณะกรรมการ (Feedback)'}
                   </h3>
                </div>
                <div className="p-6">
                   {feedbackToShow && (
-                      <div className="bg-slate-50 p-4 rounded border border-slate-200 text-slate-700 whitespace-pre-wrap mb-4">
+                      <div className={`p-4 rounded-lg border text-slate-700 whitespace-pre-wrap mb-4 font-mono text-sm leading-relaxed ${isRejectedByAdmin ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
                           {feedbackToShow}
                       </div>
                   )}
                   {feedbackFileToShow && (
                       <div className="mb-6">
-                         <a href={feedbackFileToShow} target="_blank" rel="noreferrer" className="flex items-center gap-3 bg-white p-3 rounded-lg border border-orange-200 hover:bg-orange-50 text-orange-800 transition-colors w-full sm:w-fit shadow-sm">
-                             <div className="bg-orange-100 p-2 rounded">
+                         <a href={feedbackFileToShow} target="_blank" rel="noreferrer" className="flex items-center gap-3 bg-white p-3 rounded-lg border border-orange-200 hover:bg-orange-50 text-orange-800 transition-colors w-full sm:w-fit shadow-sm group">
+                             <div className="bg-orange-100 p-2 rounded group-hover:bg-orange-200 transition-colors">
                                 <FileText size={20} />
                              </div>
                              <div className="text-sm font-medium">
@@ -349,24 +377,77 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                          </a>
                       </div>
                   )}
-                  {hasPermission(user.role, Permission.SUBMIT_REVISION) && (proposal.status === ProposalStatus.REVISION_REQ || proposal.status === ProposalStatus.ADMIN_REJECTED) && (
-                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4">
-                        <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2">
-                           <Send size={18} /> ส่งงานแก้ไข (Submit Revision)
+
+                  {/* Revision Submission Form for Researcher */}
+                  {hasPermission(user.role, Permission.SUBMIT_REVISION) && (isRevisionReq || isRejectedByAdmin) && (
+                     <div className="mt-6 pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-4">
+                        <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                           <Send size={18} className="text-blue-600" /> ส่งแบบขอแก้ไข (Submit Revision)
                         </h4>
-                        <div className="space-y-3">
+                        
+                        <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800 mb-4 flex items-start gap-2">
+                           <Info size={16} className="mt-0.5 flex-shrink-0" />
+                           <p>
+                              <span className="font-bold">คำแนะนำ:</span> กรุณาจัดการไฟล์แก้ไขใน Google Drive (อาจสร้าง Folder ใหม่ เช่น "Revision 1") 
+                              ตรวจสอบสิทธิ์ให้เป็น <u>Everyone</u> แล้วนำลิงก์มาวาง
+                           </p>
+                        </div>
+
+                        <div className="space-y-4">
                            <div>
-                              <label className="block text-xs font-semibold text-blue-700 mb-1">1. ลิงก์ไฟล์แก้ไข (Google Drive)</label>
-                              <input type="url" placeholder="https://drive.google.com/..." className="w-full border border-blue-200 p-2.5 rounded bg-white focus:ring-2 focus:ring-blue-400 outline-none"
-                                value={revisionLink} onChange={e => setRevisionLink(e.target.value)} />
+                              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                 1. ลิงก์ไฟล์แก้ไข (Google Drive) <span className="text-red-500">*</span>
+                              </label>
+                              <div className="relative">
+                                 <ExternalLink className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                                 <input 
+                                    type="url" 
+                                    placeholder="https://drive.google.com/..." 
+                                    className="w-full border border-slate-300 pl-10 pr-3 py-2.5 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    value={revisionLink} 
+                                    onChange={e => setRevisionLink(e.target.value)} 
+                                 />
+                              </div>
                            </div>
                            <div>
-                              <label className="block text-xs font-semibold text-blue-700 mb-1">2. ลิงก์บันทึกข้อความชี้แจง (ถ้ามี)</label>
-                              <input type="url" placeholder="https://drive.google.com/..." className="w-full border border-blue-200 p-2.5 rounded bg-white focus:ring-2 focus:ring-blue-400 outline-none"
-                                value={revisionNoteLink} onChange={e => setRevisionNoteLink(e.target.value)} />
+                              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                 2. ลิงก์บันทึกข้อความชี้แจง (ถ้ามี)
+                              </label>
+                              <div className="relative">
+                                 <FileText className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                                 <input 
+                                    type="url" 
+                                    placeholder="https://drive.google.com/..." 
+                                    className="w-full border border-slate-300 pl-10 pr-3 py-2.5 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    value={revisionNoteLink} 
+                                    onChange={e => setRevisionNoteLink(e.target.value)} 
+                                 />
+                              </div>
+                              <p className="text-xs text-slate-500 mt-1">เอกสารตารางชี้แจงการแก้ไข (Memo) เพื่อให้กรรมการตรวจสอบได้ง่ายขึ้น</p>
                            </div>
-                           <button onClick={handleResearcherRevise} className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-transform active:scale-95">
-                              ยืนยันส่งแก้ไข
+
+                           <div className="flex items-center gap-2 py-2">
+                             <input 
+                               type="checkbox" 
+                               id="confirmRevise" 
+                               checked={confirmRevise} 
+                               onChange={e => setConfirmRevise(e.target.checked)}
+                               className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                             />
+                             <label htmlFor="confirmRevise" className="text-sm text-slate-700 cursor-pointer select-none">
+                               ข้าพเจ้าได้ดำเนินการแก้ไขเอกสารตามข้อเสนอแนะครบถ้วนแล้ว
+                             </label>
+                           </div>
+
+                           <button 
+                              onClick={handleResearcherRevise} 
+                              disabled={!confirmRevise}
+                              className={`w-full py-3 rounded-lg font-semibold shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 mt-2 
+                                ${confirmRevise 
+                                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                           >
+                              <Send size={18} /> ยืนยันส่งข้อมูลการแก้ไข
                            </button>
                         </div>
                      </div>
@@ -456,7 +537,16 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                          <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2"><Send size={16} /> ส่งรายงานใหม่</h4>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                             <div><label className="block text-xs font-medium text-slate-500 mb-1">ประเภท</label><select className="w-full text-sm border p-2 rounded" value={reportType} onChange={(e) => setReportType(e.target.value as ReportType)}>{Object.values(ReportType).map(t => <option key={t} value={t}>{t}</option>)}</select></div>
-                            <div><label className="block text-xs font-medium text-slate-500 mb-1">ลิงก์ไฟล์</label><input type="text" className="w-full text-sm border p-2 rounded" placeholder="https://drive.google.com/..." value={reportLink} onChange={e => setReportLink(e.target.value)} /></div>
+                            <div>
+                               <label className="block text-xs font-medium text-slate-500 mb-1">ลิงก์ไฟล์รายงาน (PDF)</label>
+                               <input 
+                                  type="url" 
+                                  className="w-full text-sm border p-2 rounded" 
+                                  placeholder="https://drive.google.com/..." 
+                                  value={reportLink} 
+                                  onChange={e => setReportLink(e.target.value)} 
+                               />
+                            </div>
                          </div>
                          <div className="mb-3"><label className="block text-xs font-medium text-slate-500 mb-1">รายละเอียดเพิ่มเติม</label><textarea className="w-full text-sm border p-2 rounded" rows={2} value={reportDesc} onChange={e => setReportDesc(e.target.value)}></textarea></div>
                          <div className="flex justify-end"><button onClick={handleSubmitProgressReport} className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 font-medium">ยืนยันส่งรายงาน</button></div>
@@ -494,8 +584,9 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                </div>
                <button onClick={handleAdminAssign} className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 flex justify-center items-center gap-2 mb-4"><UserPlus size={18} /> ยืนยันมอบหมาย</button>
                <div className="border-t pt-4">
-                  <textarea className="w-full border p-2 rounded text-sm mb-2 focus:ring-2 focus:ring-red-200 outline-none border-slate-200" placeholder="ระบุสิ่งที่ต้องแก้ไข กรณีเอกสารไม่ครบ..." rows={2} value={adminPreFeedback} onChange={e => setAdminPreFeedback(e.target.value)}></textarea>
-                  <button onClick={handleAdminReturnDocs} className="w-full border border-red-300 text-red-600 py-2 rounded-lg hover:bg-red-50 text-sm flex items-center justify-center gap-2"><XCircle size={16} /> ส่งคืนแก้ไข (เอกสารไม่ครบ)</button>
+                  <p className="text-sm font-semibold mb-2 text-slate-700">ส่งคืนแก้ไข (เอกสารไม่ครบ)</p>
+                  <textarea className="w-full border p-2 rounded text-sm mb-2 focus:ring-2 focus:ring-red-200 outline-none border-slate-200" placeholder="ระบุสิ่งที่ต้องแก้ไข..." rows={2} value={adminPreFeedback} onChange={e => setAdminPreFeedback(e.target.value)}></textarea>
+                  <button onClick={handleAdminReturnDocs} className="w-full border border-red-300 text-red-600 py-2 rounded-lg hover:bg-red-50 text-sm flex items-center justify-center gap-2"><XCircle size={16} /> ส่งคืนแก้ไข</button>
                </div>
             </div>
           )}
@@ -572,4 +663,3 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
 };
 
 export default ProposalDetail;
-    

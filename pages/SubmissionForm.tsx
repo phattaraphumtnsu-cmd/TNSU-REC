@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { ProposalStatus, ReviewType, Role, UserType, User } from '../types';
-import { ArrowLeft, UploadCloud, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Link as LinkIcon, Info, AlertCircle } from 'lucide-react';
 
 interface SubmissionFormProps {
   onNavigate: (page: string) => void;
@@ -44,7 +45,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
       return;
     }
     if (user.type === UserType.STAFF && !formData.paymentSlipLink) {
-      alert('กรุณาแนบลิงก์หลักฐานการชำระเงิน (1,500 บาท)');
+      alert('กรุณาระบุลิงก์หลักฐานการชำระเงิน (1,500 บาท)');
       return;
     }
     if (!formData.fileLink.includes('http')) {
@@ -91,6 +92,15 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
         <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
           <h2 className="text-xl font-bold text-slate-800">แบบฟอร์มขอรับการพิจารณาจริยธรรมการวิจัย</h2>
           <p className="text-sm text-slate-500 mt-1">กรุณากรอกข้อมูลให้ครบถ้วนและแนบลิงก์เอกสารจาก Google Drive</p>
+        </div>
+
+        {/* Warning Banner regarding Google Drive */}
+        <div className="bg-orange-50 px-8 py-4 border-b border-orange-100 flex items-start gap-3">
+            <AlertCircle className="text-orange-600 mt-0.5 flex-shrink-0" size={20} />
+            <div className="text-sm text-orange-800">
+                <span className="font-bold">คำแนะนำสำคัญ:</span> ผู้วิจัยต้องรับผิดชอบในการจัดการไฟล์บน Cloud Storage (แนะนำ Google Drive) ด้วยตนเอง 
+                และต้องตรวจสอบว่าได้เปิดสิทธิ์การเข้าถึง (Share) เป็น <span className="font-bold underline">"Anyone with the link (ทุกคนที่มีลิงก์)"</span> เพื่อให้คณะกรรมการสามารถเปิดตรวจสอบได้
+            </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-8">
@@ -163,11 +173,12 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                 <div>
                    <label className="block text-sm font-medium text-slate-700 mb-1">ลิงก์หลักฐานการชำระเงิน (1,500 บาท)</label>
                    <div className="relative">
-                      <UploadCloud className="absolute left-3 top-3 text-slate-400" size={18} />
-                      <input type="url" placeholder="https://drive.google.com/..." 
-                        className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      <LinkIcon className="absolute left-3 top-3 text-slate-400" size={18} />
+                      <input required type="url" placeholder="https://drive.google.com/..." 
+                        className="w-full py-2.5 pl-10 pr-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                         value={formData.paymentSlipLink} onChange={e => setFormData({...formData, paymentSlipLink: e.target.value})} />
                    </div>
+                   <p className="text-xs text-slate-500 mt-1">อัปโหลดสลิปขึ้น Google Drive แล้วนำลิงก์มาวาง</p>
                 </div>
               )}
             </div>
@@ -193,9 +204,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
             </div>
             <div>
                <label className="block text-sm font-medium text-slate-700 mb-1">ลิงก์โฟลเดอร์ Google Drive รวมเอกสาร</label>
-               <input required type="url" placeholder="https://drive.google.com/drive/folders/..." 
-                  className="w-full py-2.5 px-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  value={formData.fileLink} onChange={e => setFormData({...formData, fileLink: e.target.value})} />
+               <div className="relative">
+                  <LinkIcon className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <input required type="url" placeholder="https://drive.google.com/drive/folders/..." 
+                    className="w-full py-2.5 pl-10 pr-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={formData.fileLink} onChange={e => setFormData({...formData, fileLink: e.target.value})} />
+               </div>
+               <p className="text-xs text-red-500 mt-1 font-medium">* ตรวจสอบสิทธิ์การเข้าถึงเป็น "Anyone with the link" ก่อนส่ง เพื่อป้องกันการถูกตีกลับ</p>
             </div>
           </div>
 

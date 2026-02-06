@@ -1,3 +1,4 @@
+
 import { 
   collection, 
   doc, 
@@ -10,7 +11,8 @@ import {
   query, 
   where,
   writeBatch,
-  orderBy
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { 
   signInWithEmailAndPassword, 
@@ -95,7 +97,19 @@ class DatabaseService {
     }
   }
 
-  // Legacy mock method - in Firebase this is handled by syncCurrentUser/onAuthStateChanged
+  // Check if any admin exists in the system (for initial setup)
+  async checkAnyAdminExists(): Promise<boolean> {
+    try {
+      const q = query(collection(dbFirestore, 'users'), where('role', '==', Role.ADMIN), limit(1));
+      const snapshot = await getDocs(q);
+      return !snapshot.empty;
+    } catch (e) {
+      console.error("Error checking admin existence:", e);
+      return false;
+    }
+  }
+
+  // Legacy mock method
   restoreSession(): User | null {
     return this.currentUser;
   }
@@ -105,13 +119,13 @@ class DatabaseService {
   async getUsers(): Promise<User[]> {
     const q = query(collection(dbFirestore, 'users'));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as User));
   }
 
   async getUsersByRole(role: Role): Promise<User[]> {
     const q = query(collection(dbFirestore, 'users'), where('role', '==', role));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as User));
   }
 
   async updateUser(id: string, updates: Partial<User>) {
@@ -143,7 +157,7 @@ class DatabaseService {
     }
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Proposal));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Proposal));
   }
 
   async getProposalById(id: string): Promise<Proposal | undefined> {
@@ -151,23 +165,68 @@ class DatabaseService {
     const docRef = doc(dbFirestore, 'proposals', id);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as Proposal;
+      return { id: docSnap.id, ...(docSnap.data() as any) } as Proposal;
     }
     return undefined;
+  }
+
+  // Generate a sequential code like TNSU-SCI 001/2567
+  private async generateProposalCode(facultyName: string): Promise<string> {
+    const year = new Date().getFullYear() + 543;
+    let facCode = 'GEN';
+    if (facultyName?.includes('วิทยาศาสตร์')) facCode = 'SCI';
+    else if (facultyName?.includes('ศิลปศาสตร์')) facCode = 'ART';
+    else if (facultyName?.includes('ศึกษาศาสตร์')) facCode = 'EDU';
+
+    const prefix = `TNSU-${facCode}`;
+    const suffix = `/${year}`;
+
+    try {
+        // Query recent proposals to find the last running number for this year
+        // We order by submissionDate descending to get the latest ones
+        const q = query(
+            collection(dbFirestore, 'proposals'),
+            orderBy('submissionDate', 'desc'),
+            limit(100) // Check last 100 to be safe
+        );
+        
+        const snapshot = await getDocs(q);
+        let maxNum = 0;
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Check if code matches the pattern for current Faculty and Year
+            if (data.code && data.code.startsWith(prefix) && data.code.endsWith(suffix)) {
+                 // Code format: "TNSU-SCI 001/2567"
+                 const parts = data.code.split(' ');
+                 if(parts.length > 1) {
+                     const numStr = parts[1].split('/')[0];
+                     const num = parseInt(numStr, 10);
+                     if(!isNaN(num) && num > maxNum) {
+                         maxNum = num;
+                     }
+                 }
+            }
+        });
+
+        const nextNum = maxNum + 1;
+        return `${prefix} ${nextNum.toString().padStart(3, '0')}${suffix}`;
+    } catch (e) {
+        console.warn("Auto-code generation fallback", e);
+        // Fallback to random if query fails (e.g. index missing)
+        return `${prefix} ${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}${suffix}`;
+    }
   }
 
   async createProposal(p: Partial<Proposal>): Promise<Proposal> {
     const proposalsRef = collection(dbFirestore, 'proposals');
     
-    // Generate Code
-    const year = new Date().getFullYear() + 543;
-    const facCode = p.faculty?.includes('วิทยาศาสตร์') ? 'SCI' : p.faculty?.includes('ศิลปศาสตร์') ? 'ART' : 'EDU';
-    const uniqueSuffix = Date.now().toString().slice(-4);
-    const tempCode = `TNSU-${facCode} ${uniqueSuffix}/${year}`;
+    // Generate Sequential Code
+    const code = await this.generateProposalCode(p.faculty || '');
 
     const newProposalData = {
       ...p,
-      code: tempCode,
+      code,
       revisionCount: 0,
       revisionHistory: [],
       reviews: [],
@@ -175,6 +234,7 @@ class DatabaseService {
       progressReports: [],
       status: p.advisorId ? ProposalStatus.PENDING_ADVISOR : ProposalStatus.PENDING_ADMIN_CHECK,
       submissionDate: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString(), // Precise timestamp for sorting
       updatedDate: new Date().toISOString().split('T')[0],
     };
 
@@ -317,12 +377,12 @@ class DatabaseService {
     );
     try {
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Notification));
     } catch (e) {
-        // Fallback if index is missing
+        // Fallback if index is missing or sorting fails
         const q2 = query(collection(dbFirestore, 'notifications'), where('userId', '==', userId));
         const qs = await getDocs(q2);
-        return qs.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+        return qs.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Notification)).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
     }
   }
 

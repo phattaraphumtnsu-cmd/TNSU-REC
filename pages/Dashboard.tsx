@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database'; // Real DB
 import { ProposalStatus, Role, Proposal } from '../types';
@@ -24,7 +25,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       if (user) {
         setLoading(true);
         try {
-          const data = await db.getProposals(user.role, user.id);
+          let data = await db.getProposals(user.role, user.id);
+          
+          // Explicitly filter for Researcher role as a safeguard
+          if (user.role === Role.RESEARCHER) {
+             data = data.filter(p => p.researcherId === user.id);
+          }
+
           // Sort by updated date desc
           data.sort((a,b) => new Date(b.updatedDate).getTime() - new Date(a.updatedDate).getTime());
           setProposals(data);
