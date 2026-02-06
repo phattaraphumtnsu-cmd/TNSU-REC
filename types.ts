@@ -81,6 +81,7 @@ export interface Review {
   vote: Vote;
   comment: string;
   fileLink?: string;
+  reviewProcessLink?: string; // Link to review process details
   submittedAt: string;
 }
 

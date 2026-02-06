@@ -21,6 +21,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   const [vote, setVote] = useState<Vote>(Vote.APPROVE);
   const [comment, setComment] = useState('');
   const [reviewerLink, setReviewerLink] = useState('');
+  const [reviewProcessLink, setReviewProcessLink] = useState('');
 
   // Admin Final Decision State
   const [adminDecision, setAdminDecision] = useState<Vote>(Vote.APPROVE);
@@ -64,6 +65,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
       vote,
       comment,
       fileLink: reviewerLink,
+      reviewProcessLink: reviewProcessLink,
       submittedAt: new Date().toISOString()
     });
     
@@ -305,11 +307,18 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                           </span>
                        </div>
                        <p className="text-slate-600 text-sm mb-2">{r.comment}</p>
-                       {r.fileLink && (
-                          <a href={r.fileLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded">
-                             <Link2 size={12} /> เอกสารแนบจากกรรมการ
-                          </a>
-                       )}
+                       <div className="flex flex-wrap gap-2">
+                         {r.fileLink && (
+                            <a href={r.fileLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded">
+                               <Link2 size={12} /> เอกสารแนบจากกรรมการ
+                            </a>
+                         )}
+                         {r.reviewProcessLink && (
+                            <a href={r.reviewProcessLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline bg-purple-50 px-2 py-1 rounded">
+                               <FileText size={12} /> รายละเอียดกระบวนการ
+                            </a>
+                         )}
+                       </div>
                     </div>
                   ))}
                 </div>
@@ -497,8 +506,8 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                   onChange={e => setComment(e.target.value)}
                 ></textarea>
                 
-                {/* Optional Link Input for Reviewer */}
-                <div className="relative mb-4">
+                {/* Optional Link Input for Reviewer - File Attachment */}
+                <div className="relative mb-2">
                    <Link2 className="absolute left-3 top-2.5 text-slate-400" size={16} />
                    <input 
                       type="url" 
@@ -506,6 +515,18 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                       className="w-full border pl-10 pr-3 py-2 rounded-lg text-sm"
                       value={reviewerLink}
                       onChange={e => setReviewerLink(e.target.value)}
+                   />
+                </div>
+
+                {/* Optional Link Input for Reviewer - Process Details */}
+                <div className="relative mb-4">
+                   <FileText className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                   <input 
+                      type="url" 
+                      placeholder="ลิงก์รายละเอียดกระบวนการพิจารณา (Review Process Details Link)" 
+                      className="w-full border pl-10 pr-3 py-2 rounded-lg text-sm"
+                      value={reviewProcessLink}
+                      onChange={e => setReviewProcessLink(e.target.value)}
                    />
                 </div>
 

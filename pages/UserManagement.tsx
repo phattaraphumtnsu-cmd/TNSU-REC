@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { db } from '../services/mockDatabase';
 import { Role, CAMPUSES, FACULTIES, SCHOOLS, hasPermission, Permission } from '../types';
-import { Trash2, UserPlus, Search, Shield, X, Check, Mail, MapPin, Lock } from 'lucide-react';
+import { Trash2, UserPlus, Search, Shield, X, Check, Mail, MapPin, Lock, Filter } from 'lucide-react';
 
 const UserManagement: React.FC = () => {
   const currentUser = db.currentUser;
   const [users, setUsers] = useState(db.users);
+  
+  // Filters
   const [filterRole, setFilterRole] = useState<string>('ALL');
+  const [filterCampus, setFilterCampus] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   
   // Add User Form State
@@ -50,12 +53,13 @@ const UserManagement: React.FC = () => {
     setNewUser({ ...newUser, name: '', email: '' });
   };
 
-  // Filtering
+  // Filtering Logic
   const filteredUsers = users.filter(user => {
     const matchRole = filterRole === 'ALL' || user.role === filterRole;
+    const matchCampus = filterCampus === 'ALL' || user.campus === filterCampus;
     const matchSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchRole && matchSearch;
+    return matchRole && matchCampus && matchSearch;
   });
 
   const getRoleBadge = (role: Role) => {
@@ -139,8 +143,10 @@ const UserManagement: React.FC = () => {
       )}
 
       {/* Toolbar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center">
-         <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
+         
+         {/* Role Filters */}
+         <div className="flex gap-2 overflow-x-auto w-full xl:w-auto pb-2 xl:pb-0 no-scrollbar">
            {['ALL', Role.REVIEWER, Role.ADVISOR, Role.RESEARCHER, Role.ADMIN].map((role) => (
              <button
                key={role}
@@ -155,15 +161,33 @@ const UserManagement: React.FC = () => {
              </button>
            ))}
          </div>
-         <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="ค้นหาชื่อ หรืออีเมล..." 
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
+
+         {/* Search & Campus Filter */}
+         <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
+            <select 
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white md:w-48"
+              value={filterCampus}
+              onChange={e => setFilterCampus(e.target.value)}
+            >
+               <option value="ALL">ทุกวิทยาเขต/โรงเรียน</option>
+               <optgroup label="วิทยาเขต">
+                  {CAMPUSES.map(c => <option key={c} value={c}>{c}</option>)}
+               </optgroup>
+               <optgroup label="โรงเรียนกีฬา">
+                  {SCHOOLS.map(c => <option key={c} value={c}>{c}</option>)}
+               </optgroup>
+            </select>
+            
+            <div className="relative flex-1 md:w-64">
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="ค้นหาชื่อ หรืออีเมล..." 
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+            </div>
          </div>
       </div>
 
@@ -182,8 +206,11 @@ const UserManagement: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {filteredUsers.length === 0 ? (
                 <tr>
-                   <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
-                     ไม่พบข้อมูลผู้ใช้งาน
+                   <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                     <div className="flex flex-col items-center justify-center">
+                        <Filter size={32} className="text-slate-300 mb-2"/>
+                        <p>ไม่พบข้อมูลผู้ใช้งานตามเงื่อนไข</p>
+                     </div>
                    </td>
                 </tr>
               ) : (
@@ -232,8 +259,11 @@ const UserManagement: React.FC = () => {
             </tbody>
           </table>
         </div>
-        <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 text-xs text-slate-500">
-           จำนวนทั้งหมด {filteredUsers.length} รายการ
+        <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 text-xs text-slate-500 flex justify-between">
+           <span>แสดง {filteredUsers.length} รายการ</span>
+           {(searchTerm || filterRole !== 'ALL' || filterCampus !== 'ALL') && (
+              <span className="text-orange-600">(กำลังกรองข้อมูล)</span>
+           )}
         </div>
       </div>
     </div>

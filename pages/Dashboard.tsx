@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { db } from '../services/mockDatabase';
-import { Proposal, ProposalStatus, Role } from '../types';
-import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus } from 'lucide-react';
+import { ProposalStatus, Role } from '../types';
+import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, Calendar, X } from 'lucide-react';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -9,11 +9,17 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const user = db.currentUser;
+  
+  // Filter States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [filterDate, setFilterDate] = useState('');
+
   if (!user) return null;
 
   const proposals = db.getProposals(user.role, user.id);
 
-  // Common Stats Logic based on the filtered proposals
+  // Stats Logic (Based on ALL proposals, independent of filter)
   const stats = {
     pending: proposals.filter(p => [ProposalStatus.IN_REVIEW, ProposalStatus.PENDING_ADVISOR, ProposalStatus.PENDING_ADMIN_CHECK, ProposalStatus.PENDING_DECISION].includes(p.status)).length,
     revision: proposals.filter(p => [ProposalStatus.REVISION_REQ, ProposalStatus.ADMIN_REJECTED].includes(p.status)).length,
@@ -31,6 +37,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       case ProposalStatus.SUSPENDED: return 'bg-gray-100 text-gray-700 border-gray-400 border-dashed';
       default: return 'bg-yellow-100 text-yellow-700 border-yellow-200';
     }
+  };
+
+  // Filter Logic
+  const filteredProposals = proposals.filter(p => {
+    // 1. Search Term (Code, Titles, Researcher Name)
+    const searchLower = searchTerm.toLowerCase();
+    const matchSearch = 
+      (p.code?.toLowerCase().includes(searchLower) || false) ||
+      p.titleTh.toLowerCase().includes(searchLower) ||
+      p.titleEn.toLowerCase().includes(searchLower) ||
+      p.researcherName.toLowerCase().includes(searchLower);
+
+    // 2. Status
+    const matchStatus = filterStatus === 'ALL' || p.status === filterStatus;
+
+    // 3. Date
+    const matchDate = !filterDate || p.submissionDate === filterDate;
+
+    return matchSearch && matchStatus && matchDate;
+  });
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('ALL');
+    setFilterDate('');
   };
 
   const StatCard = ({ label, count, color, icon: Icon }: any) => (
@@ -71,12 +102,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <StatCard label="ไม่อนุมัติ" count={stats.rejected} color="border-red-200 text-red-600" icon={XCircle} />
         </div>
 
-        {/* Researcher Proposal List */}
+        {/* Researcher Proposal List with Basic Search */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
             <h3 className="font-semibold text-slate-700 flex items-center gap-2">
               <FileCheck size={18} className="text-blue-500"/> รายการที่ยื่นขอ (Submitted Proposals)
             </h3>
+            <div className="relative w-full md:w-64">
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="ค้นหาชื่อโครงการ..." 
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -90,18 +131,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {proposals.length === 0 ? (
+                {filteredProposals.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-slate-400 flex flex-col items-center justify-center">
                       <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
                          <FilePlus size={32} className="text-slate-300" />
                       </div>
-                      <p>คุณยังไม่มีโครงการวิจัย</p>
-                      <button onClick={() => onNavigate('submit')} className="text-blue-600 hover:underline mt-2 text-sm">เริ่มยื่นคำขอใหม่</button>
+                      <p>ไม่พบข้อมูลโครงการ</p>
+                      {proposals.length === 0 && <button onClick={() => onNavigate('submit')} className="text-blue-600 hover:underline mt-2 text-sm">เริ่มยื่นคำขอใหม่</button>}
                     </td>
                   </tr>
                 ) : (
-                  proposals.map((p) => (
+                  filteredProposals.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
@@ -159,14 +200,61 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         <StatCard label="ไม่อนุมัติ" count={stats.rejected} color="border-red-200 text-red-600" icon={XCircle} />
       </div>
 
-      {/* Main Table */}
+      {/* Main Table with Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <h3 className="font-semibold text-slate-700">รายการโครงการวิจัยทั้งหมด</h3>
-          <div className="flex gap-2">
-             <button className="p-2 hover:bg-slate-200 rounded-lg text-slate-500"><Filter size={18}/></button>
+        
+        {/* Toolbar */}
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-slate-700 whitespace-nowrap">รายการโครงการ</h3>
+            <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-xs">{filteredProposals.length}</span>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
+             {/* Search */}
+             <div className="relative flex-1 md:w-64">
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="ค้นหาชื่อ, รหัส, ผู้วิจัย..." 
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+             </div>
+
+             {/* Status Filter */}
+             <select 
+               className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+               value={filterStatus}
+               onChange={e => setFilterStatus(e.target.value)}
+             >
+                <option value="ALL">ทุกสถานะ</option>
+                {Object.values(ProposalStatus).map(s => <option key={s} value={s}>{s}</option>)}
+             </select>
+
+             {/* Date Filter */}
+             <div className="relative">
+                <input 
+                  type="date"
+                  className="border border-slate-200 rounded-lg pl-3 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white w-full md:w-auto"
+                  value={filterDate}
+                  onChange={e => setFilterDate(e.target.value)}
+                />
+             </div>
+
+             {/* Clear Filter */}
+             {(searchTerm || filterStatus !== 'ALL' || filterDate) && (
+               <button 
+                 onClick={clearFilters}
+                 className="flex items-center justify-center gap-1 text-slate-500 hover:text-red-500 px-3 py-2 text-sm transition-colors border border-dashed border-slate-300 rounded-lg hover:bg-red-50 hover:border-red-200"
+               >
+                 <X size={16} /> ล้างตัวกรอง
+               </button>
+             )}
           </div>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 text-slate-500 text-sm font-medium uppercase tracking-wider">
@@ -179,14 +267,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {proposals.length === 0 ? (
+              {filteredProposals.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                    ไม่พบข้อมูลโครงการ
+                    <div className="flex flex-col items-center justify-center">
+                       <Filter size={32} className="text-slate-300 mb-2" />
+                       <p>ไม่พบข้อมูลตามเงื่อนไขที่ระบุ</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                proposals.map((p) => (
+                filteredProposals.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">

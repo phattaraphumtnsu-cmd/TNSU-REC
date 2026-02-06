@@ -59,7 +59,9 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
       <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col shrink-0 z-20">
         <div className="p-6 border-b border-slate-700">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-white">T</div>
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center p-0.5">
+               <img src="https://placehold.co/100x100/1e293b/ffffff?text=LOGO" alt="Logo" className="w-full h-full object-contain rounded-full" />
+            </div>
             <h1 className="text-xl font-bold tracking-tight">TNSU-REC</h1>
           </div>
           <p className="text-xs text-slate-400 mt-2">ระบบจริยธรรมการวิจัยในมนุษย์</p>

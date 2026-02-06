@@ -11,9 +11,17 @@ import UserManual from './pages/UserManual';
 import { db } from './services/mockDatabase';
 
 const App: React.FC = () => {
+  // Initialize state by trying to restore session immediately
   const [currentPage, setCurrentPage] = useState('auth');
   const [pageParams, setPageParams] = useState<any>({});
-  const [user, setUser] = useState(db.currentUser);
+  const [user, setUser] = useState(() => db.restoreSession() || db.currentUser);
+
+  // Check session on mount to redirect if already logged in
+  useEffect(() => {
+    if (user && currentPage === 'auth') {
+      setCurrentPage('dashboard');
+    }
+  }, [user]);
 
   const handleLogin = () => {
     setUser(db.currentUser);

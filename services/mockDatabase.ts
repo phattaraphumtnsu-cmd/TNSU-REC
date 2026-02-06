@@ -60,6 +60,7 @@ class MockDatabase {
   proposals: Proposal[] = [...INITIAL_PROPOSALS];
   notifications: Notification[] = []; // In-memory notifications
   currentUser: User | null = null;
+  private SESSION_KEY = 'tnsu_rec_session_uid';
 
   // Auth
   login(email: string, pass: string): User | undefined {
@@ -70,6 +71,54 @@ class MockDatabase {
 
   logout() {
     this.currentUser = null;
+    this.clearSession();
+  }
+
+  // Password Management
+  checkUserExists(email: string): boolean {
+    return this.users.some(u => u.email === email);
+  }
+
+  resetPassword(email: string, newPass: string): boolean {
+    const user = this.users.find(u => u.email === email);
+    if (user) {
+      user.password = newPass;
+      return true;
+    }
+    return false;
+  }
+
+  // Session Persistence (Remember Me)
+  saveSession(userId: string) {
+    try {
+      localStorage.setItem(this.SESSION_KEY, userId);
+    } catch (e) {
+      console.error('Local Storage unavailable');
+    }
+  }
+
+  restoreSession(): User | null {
+    try {
+      const storedId = localStorage.getItem(this.SESSION_KEY);
+      if (storedId) {
+        const user = this.users.find(u => u.id === storedId);
+        if (user) {
+          this.currentUser = user;
+          return user;
+        }
+      }
+    } catch (e) {
+      console.error('Local Storage unavailable');
+    }
+    return null;
+  }
+
+  clearSession() {
+    try {
+      localStorage.removeItem(this.SESSION_KEY);
+    } catch (e) {
+      console.error('Local Storage unavailable');
+    }
   }
 
   register(user: User) {

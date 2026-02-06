@@ -1,20 +1,28 @@
 import React, { useState } from 'react';
 import { db } from '../services/mockDatabase';
 import { CAMPUSES, FACULTIES, Role, SCHOOLS, UserType } from '../types';
-import { BookOpen, User, Lock, Building, GraduationCap, MapPin, HelpCircle } from 'lucide-react';
+import { BookOpen, User, Lock, Building, GraduationCap, MapPin, HelpCircle, ArrowLeft, Mail, Key } from 'lucide-react';
 
 interface AuthProps {
   onLogin: () => void;
   onNavigateManual: () => void;
 }
 
+type AuthView = 'LOGIN' | 'REGISTER' | 'FORGOT_EMAIL' | 'FORGOT_NEW_PASS';
+
 const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [view, setView] = useState<AuthView>('LOGIN');
   
   // Login State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
+
+  // Forgot Password State
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetPass, setResetPass] = useState('');
+  const [resetConfirmPass, setResetConfirmPass] = useState('');
 
   // Register State
   const [regName, setRegName] = useState('');
@@ -30,6 +38,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
     e.preventDefault();
     const user = db.login(email, password);
     if (user) {
+      if (rememberMe) {
+        db.saveSession(user.id);
+      }
       onLogin();
     } else {
       setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
@@ -55,8 +66,52 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
     });
 
     alert('ลงทะเบียนสำเร็จ กรุณาเข้าสู่ระบบ');
-    setIsLogin(true);
+    setView('LOGIN');
     setError('');
+  };
+
+  const handleForgotEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (db.checkUserExists(resetEmail)) {
+      setError('');
+      alert(`ระบบได้ส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปที่ ${resetEmail} เรียบร้อยแล้ว\n(ระบบจำลอง: กำลังพาท่านไปหน้าตั้งรหัสผ่านใหม่ทันที)`);
+      setView('FORGOT_NEW_PASS');
+    } else {
+      setError('ไม่พบอีเมลนี้ในระบบ');
+    }
+  };
+
+  const handleResetPasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetPass !== resetConfirmPass) {
+      setError('รหัสผ่านใหม่ไม่ตรงกัน');
+      return;
+    }
+    if (resetPass.length < 6) {
+      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+      return;
+    }
+
+    const success = db.resetPassword(resetEmail, resetPass);
+    if (success) {
+      alert('เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
+      setView('LOGIN');
+      setResetEmail('');
+      setResetPass('');
+      setResetConfirmPass('');
+      setError('');
+    } else {
+      setError('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+    }
+  };
+
+  const getTitle = () => {
+    switch(view) {
+      case 'LOGIN': return 'เข้าสู่ระบบ';
+      case 'REGISTER': return 'ลงทะเบียนสมาชิกใหม่';
+      case 'FORGOT_EMAIL': return 'ลืมรหัสผ่าน';
+      case 'FORGOT_NEW_PASS': return 'ตั้งรหัสผ่านใหม่';
+    }
   };
 
   return (
@@ -75,7 +130,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
         <div className="md:w-1/2 bg-blue-700 p-10 flex flex-col justify-center text-white relative">
           <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
           <div className="z-10">
-            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-6 text-blue-700 font-bold text-3xl shadow-lg">T</div>
+            <div className="w-28 h-28 bg-white rounded-full flex items-center justify-center mb-6 shadow-lg p-3 mx-auto md:mx-0">
+               <img src="https://upload.wikimedia.org/wikipedia/th/e/e0/TNSU_Logo.png" alt="TNSU Logo" className="w-full h-full object-contain" />
+            </div>
             <h1 className="text-3xl font-bold mb-2">TNSU-REC</h1>
             <p className="text-blue-100 text-lg mb-8">ระบบจริยธรรมการวิจัยในมนุษย์<br/>มหาวิทยาลัยการกีฬาแห่งชาติ</p>
             <div className="space-y-4 text-sm text-blue-200">
@@ -98,16 +155,16 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
         {/* Right Side: Form */}
         <div className="md:w-1/2 p-10 py-12">
           <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
-            {isLogin ? 'เข้าสู่ระบบ' : 'ลงทะเบียนสมาชิกใหม่'}
+            {getTitle()}
           </h2>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 flex items-center gap-2">
+            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 flex items-center gap-2 animate-pulse">
               <span className="font-bold">!</span> {error}
             </div>
           )}
 
-          {isLogin ? (
+          {view === 'LOGIN' && (
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">อีเมล</label>
@@ -137,11 +194,28 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
                   />
                 </div>
               </div>
+
+              {/* Remember Me & Forgot Password */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center space-x-2 cursor-pointer select-none">
+                  <input 
+                    type="checkbox" 
+                    checked={rememberMe} 
+                    onChange={e => setRememberMe(e.target.checked)} 
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-600">จำการเข้าสู่ระบบ</span>
+                </label>
+                <button type="button" onClick={() => { setView('FORGOT_EMAIL'); setError(''); }} className="text-sm text-blue-600 hover:underline hover:text-blue-800 transition-colors">
+                  ลืมรหัสผ่าน?
+                </button>
+              </div>
+
               <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all transform active:scale-95">
                 เข้าสู่ระบบ
               </button>
               <div className="text-center mt-4">
-                 <button type="button" onClick={() => setIsLogin(false)} className="text-sm text-blue-600 hover:underline">
+                 <button type="button" onClick={() => { setView('REGISTER'); setError(''); }} className="text-sm text-blue-600 hover:underline">
                     ยังไม่มีบัญชี? ลงทะเบียนที่นี่
                  </button>
               </div>
@@ -152,7 +226,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
                 </p>
               </div>
             </form>
-          ) : (
+          )}
+
+          {view === 'REGISTER' && (
             <form onSubmit={handleRegister} className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
               {/* Role Selection */}
               <div className="flex gap-4 mb-4">
@@ -225,8 +301,92 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
                 ลงทะเบียน
               </button>
               <div className="text-center mt-2">
-                 <button type="button" onClick={() => setIsLogin(true)} className="text-sm text-blue-600 hover:underline">
+                 <button type="button" onClick={() => { setView('LOGIN'); setError(''); }} className="text-sm text-blue-600 hover:underline">
                     กลับไปหน้าเข้าสู่ระบบ
+                 </button>
+              </div>
+            </form>
+          )}
+
+          {/* FORGOT PASSWORD: STEP 1 (Email) */}
+          {view === 'FORGOT_EMAIL' && (
+            <form onSubmit={handleForgotEmailSubmit} className="space-y-6">
+              <div className="text-center text-slate-600 text-sm mb-4">
+                กรุณากรอกอีเมลที่ท่านใช้ลงทะเบียน ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้ท่าน
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">อีเมล</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={e => setResetEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+                    placeholder="user@tnsu.ac.th"
+                    required
+                  />
+                </div>
+              </div>
+
+              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all">
+                ส่งลิงก์รีเซ็ตรหัสผ่าน
+              </button>
+              
+              <div className="text-center mt-4">
+                 <button type="button" onClick={() => { setView('LOGIN'); setError(''); }} className="text-sm text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1 mx-auto">
+                    <ArrowLeft size={16} /> กลับไปหน้าเข้าสู่ระบบ
+                 </button>
+              </div>
+            </form>
+          )}
+
+          {/* FORGOT PASSWORD: STEP 2 (New Password) */}
+          {view === 'FORGOT_NEW_PASS' && (
+            <form onSubmit={handleResetPasswordSubmit} className="space-y-5">
+              <div className="bg-blue-50 p-3 rounded-lg text-blue-800 text-sm mb-4 border border-blue-100 flex items-center gap-2">
+                 <Key size={16} /> กำลังตั้งรหัสผ่านใหม่สำหรับ: <span className="font-semibold">{resetEmail}</span>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">รหัสผ่านใหม่</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <input
+                    type="password"
+                    value={resetPass}
+                    onChange={e => setResetPass(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+                    placeholder="••••••••"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">ยืนยันรหัสผ่านใหม่</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <input
+                    type="password"
+                    value={resetConfirmPass}
+                    onChange={e => setResetConfirmPass(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all outline-none"
+                    placeholder="••••••••"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </div>
+
+              <button className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all">
+                ยืนยันเปลี่ยนรหัสผ่าน
+              </button>
+              
+              <div className="text-center mt-4">
+                 <button type="button" onClick={() => { setView('LOGIN'); setError(''); }} className="text-sm text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1 mx-auto">
+                    ยกเลิก
                  </button>
               </div>
             </form>
