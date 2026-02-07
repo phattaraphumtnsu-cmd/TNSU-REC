@@ -1,4 +1,5 @@
 
+
 export enum Role {
   RESEARCHER = 'RESEARCHER',
   ADVISOR = 'ADVISOR',
@@ -63,6 +64,17 @@ export interface Notification {
   link?: string;
   isRead: boolean;
   createdAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string; // e.g., 'CREATE_PROPOSAL', 'APPROVE'
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  targetId: string; // Proposal ID or User ID
+  details: string;
+  timestamp: string;
 }
 
 export interface User {
@@ -212,4 +224,3 @@ export const hasPermission = (userRole: Role, permission: Permission): boolean =
   const permissions = ROLE_PERMISSIONS[userRole];
   return permissions ? permissions.includes(permission) : false;
 };
-    

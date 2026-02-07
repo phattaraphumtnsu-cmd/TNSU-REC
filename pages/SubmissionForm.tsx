@@ -1,8 +1,10 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { ProposalStatus, ReviewType, Role, UserType, User } from '../types';
 import { ArrowLeft, Loader2, Link as LinkIcon, Info, AlertCircle } from 'lucide-react';
+import FileUploader from '../components/FileUploader';
 
 interface SubmissionFormProps {
   onNavigate: (page: string) => void;
@@ -81,6 +83,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
     }
   };
 
+  const isStudent = user.type === UserType.STUDENT;
+
   return (
     <div className="max-w-4xl mx-auto">
       <button onClick={() => onNavigate('dashboard')} className="flex items-center text-slate-500 hover:text-slate-800 mb-6 transition-colors">
@@ -148,48 +152,36 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
 
           <hr className="border-slate-100" />
 
-          {/* Section 2: Roles specific */}
-          <div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm">2</span>
-              ข้อมูลเพิ่มเติม
-            </h3>
-            <div className="space-y-6">
-              {user.type === UserType.STUDENT && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">อาจารย์ที่ปรึกษา</label>
-                  <select className="w-full border-slate-300 rounded-lg p-2.5 border outline-none"
-                     value={formData.advisorId} onChange={e => setFormData({...formData, advisorId: e.target.value})}>
-                     <option value="">-- เลือกอาจารย์ที่ปรึกษา --</option>
-                     {advisors.map(a => (
-                       <option key={a.id} value={a.id}>{a.name} ({a.faculty})</option>
-                     ))}
-                  </select>
-                  <p className="text-xs text-orange-500 mt-1">* ต้องได้รับการอนุมัติจากที่ปรึกษาก่อนส่ง Admin</p>
+          {/* Section 2: Roles specific (Student Only) */}
+          {isStudent && (
+            <>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm">2</span>
+                  ข้อมูลที่ปรึกษา
+                </h3>
+                <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">อาจารย์ที่ปรึกษา</label>
+                      <select className="w-full border-slate-300 rounded-lg p-2.5 border outline-none"
+                         value={formData.advisorId} onChange={e => setFormData({...formData, advisorId: e.target.value})}>
+                         <option value="">-- เลือกอาจารย์ที่ปรึกษา --</option>
+                         {advisors.map(a => (
+                           <option key={a.id} value={a.id}>{a.name} ({a.faculty})</option>
+                         ))}
+                      </select>
+                      <p className="text-xs text-orange-500 mt-1">* ต้องได้รับการอนุมัติจากที่ปรึกษาก่อนส่ง Admin</p>
+                    </div>
                 </div>
-              )}
-
-              {user.type === UserType.STAFF && (
-                <div>
-                   <label className="block text-sm font-medium text-slate-700 mb-1">ลิงก์หลักฐานการชำระเงิน (1,500 บาท)</label>
-                   <div className="relative">
-                      <LinkIcon className="absolute left-3 top-3 text-slate-400" size={18} />
-                      <input required type="url" placeholder="https://drive.google.com/..." 
-                        className="w-full py-2.5 pl-10 pr-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={formData.paymentSlipLink} onChange={e => setFormData({...formData, paymentSlipLink: e.target.value})} />
-                   </div>
-                   <p className="text-xs text-slate-500 mt-1">อัปโหลดสลิปขึ้น Google Drive แล้วนำลิงก์มาวาง</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <hr className="border-slate-100" />
+              </div>
+              <hr className="border-slate-100" />
+            </>
+          )}
 
           {/* Section 3: Documents */}
           <div>
             <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm">3</span>
+              <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm">{isStudent ? 3 : 2}</span>
               เอกสารแนบ (Google Drive Link)
             </h3>
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4 text-sm text-blue-800">
@@ -212,6 +204,58 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                </div>
                <p className="text-xs text-red-500 mt-1 font-medium">* ตรวจสอบสิทธิ์การเข้าถึงเป็น "Anyone with the link" ก่อนส่ง เพื่อป้องกันการถูกตีกลับ</p>
             </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Section 4: Payment Slip / Other Documents */}
+          <div>
+             <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm">{isStudent ? 4 : 3}</span>
+                หลักฐานการชำระเงิน / เอกสารอื่นๆ
+             </h3>
+             <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
+                 {/* Option 1: File Upload */}
+                 <div>
+                    <FileUploader 
+                        folder="payment_slips" 
+                        label="อัปโหลดไฟล์หลักฐาน (รูปภาพ/PDF)"
+                        onUploadComplete={(url) => setFormData(prev => ({ ...prev, paymentSlipLink: url }))}
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        currentUrl={formData.paymentSlipLink}
+                    />
+                 </div>
+
+                 <div className="relative flex py-2 items-center">
+                    <div className="flex-grow border-t border-slate-300"></div>
+                    <span className="flex-shrink-0 mx-4 text-slate-400 text-xs">หรือ ระบุเป็นลิงก์ (Google Drive)</span>
+                    <div className="flex-grow border-t border-slate-300"></div>
+                 </div>
+
+                 {/* Option 2: Link Input */}
+                 <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      ลิงก์หลักฐานการชำระเงิน หรือ เอกสารเพิ่มเติม
+                      {!isStudent && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    <div className="relative">
+                       <LinkIcon className="absolute left-3 top-3 text-slate-400" size={18} />
+                       <input 
+                         type="url" 
+                         placeholder="https://drive.google.com/..." 
+                         className="w-full py-2.5 pl-10 pr-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                         value={formData.paymentSlipLink} 
+                         onChange={e => setFormData({...formData, paymentSlipLink: e.target.value})} 
+                         required={!isStudent && !formData.paymentSlipLink}
+                       />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                       {!isStudent 
+                         ? 'สำหรับบุคลากร/อาจารย์ ค่าธรรมเนียม 1,500 บาท (จำเป็นต้องระบุ)' 
+                         : 'สำหรับเอกสารเพิ่มเติมอื่นๆ ที่ไม่ได้อยู่ในโฟลเดอร์หลัก (ถ้ามี)'}
+                    </p>
+                 </div>
+             </div>
           </div>
 
           <div className="flex justify-end pt-4">

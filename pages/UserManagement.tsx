@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Role, CAMPUSES, FACULTIES, SCHOOLS, hasPermission, Permission, User } from '../types';
-import { Trash2, UserPlus, Search, Shield, X, Check, Mail, MapPin, Lock, Filter, Loader2, AlertTriangle } from 'lucide-react';
+import { Trash2, UserPlus, Search, Shield, X, Check, Mail, MapPin, Lock, Filter, Loader2, AlertTriangle, Ban } from 'lucide-react';
 
 const UserManagement: React.FC = () => {
   const currentUser = db.currentUser;
@@ -61,7 +62,7 @@ const UserManagement: React.FC = () => {
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (window.confirm(`ยืนยันการลบผู้ใช้งาน "${name}"?`)) {
+    if (window.confirm(`ยืนยันการระงับการใช้งานผู้ใช้ "${name}"?\n(ผู้ใช้จะไม่สามารถเข้าสู่ระบบได้ แต่ข้อมูลในระบบจะยังคงอยู่)`)) {
       await db.deleteUser(id);
       fetchUsers(); 
     }
@@ -108,12 +109,13 @@ const UserManagement: React.FC = () => {
     return matchRole && matchCampus && matchSearch;
   });
 
-  const getRoleBadge = (role: Role) => {
+  const getRoleBadge = (role: string) => {
     switch (role) {
       case Role.ADMIN: return 'bg-purple-100 text-purple-700 border-purple-200';
       case Role.REVIEWER: return 'bg-blue-100 text-blue-700 border-blue-200';
       case Role.ADVISOR: return 'bg-orange-100 text-orange-700 border-orange-200';
       case Role.RESEARCHER: return 'bg-green-100 text-green-700 border-green-200';
+      case 'SUSPENDED': return 'bg-red-100 text-red-700 border-red-200';
       default: return 'bg-gray-100 text-gray-600';
     }
   };
@@ -125,7 +127,7 @@ const UserManagement: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">จัดการผู้ใช้งาน</h2>
-          <p className="text-slate-500">เพิ่ม ลบ และแก้ไขสิทธิ์การเข้าใช้งานระบบ</p>
+          <p className="text-slate-500">เพิ่ม ระงับ และแก้ไขสิทธิ์การเข้าใช้งานระบบ</p>
         </div>
         <button 
           onClick={() => setIsAdding(!isAdding)}
@@ -182,7 +184,7 @@ const UserManagement: React.FC = () => {
                     <td className="px-6 py-4"><div className="flex items-center"><div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold mr-3 text-sm">{user.name.charAt(0)}</div><div><div className="font-medium text-slate-900">{user.name}</div><div className="text-sm text-slate-500 flex items-center gap-1"><Mail size={12} /> {user.email}</div></div></div></td>
                     <td className="px-6 py-4"><select value={user.role} onChange={(e) => handleRoleChangeRequest(user.id, user.name, e.target.value as Role)} disabled={user.id === currentUser.id} className={`inline-flex items-center px-2 py-1 rounded border text-xs font-bold uppercase cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 ${getRoleBadge(user.role)}`}>{Object.values(Role).map(r => (<option key={r} value={r} className="bg-white text-slate-900">{r}</option>))}</select></td>
                     <td className="px-6 py-4 text-sm text-slate-600"><div className="flex items-center gap-1"><MapPin size={14} className="text-slate-400" />{user.campus || '-'}</div><div className="text-xs text-slate-400 ml-5">{user.faculty}</div></td>
-                    <td className="px-6 py-4 text-right">{user.role !== Role.ADMIN && (<button onClick={() => handleDelete(user.id, user.name)} className="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors" title="ลบผู้ใช้งาน"><Trash2 size={18} /></button>)}</td>
+                    <td className="px-6 py-4 text-right">{user.role !== Role.ADMIN && (<button onClick={() => handleDelete(user.id, user.name)} className="text-slate-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors" title="ระงับการใช้งาน"><Ban size={18} /></button>)}</td>
                   </tr>
                 ))
               )}

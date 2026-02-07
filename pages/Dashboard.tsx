@@ -1,8 +1,9 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database'; // Real DB
 import { ProposalStatus, Role, Proposal } from '../types';
-import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2 } from 'lucide-react';
+import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2, Calendar } from 'lucide-react';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -14,6 +15,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   // Data State
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expiringProposals, setExpiringProposals] = useState<Proposal[]>([]);
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,7 +29,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         try {
           let data = await db.getProposals(user.role, user.id);
           
-          // Explicitly filter for Researcher role as a safeguard
           if (user.role === Role.RESEARCHER) {
              data = data.filter(p => p.researcherId === user.id);
           }
@@ -35,6 +36,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           // Sort by updated date desc
           data.sort((a,b) => new Date(b.updatedDate).getTime() - new Date(a.updatedDate).getTime());
           setProposals(data);
+
+          // Admin: Run background check for expiry
+          if (user.role === Role.ADMIN) {
+             await db.checkExpiringCertificates();
+             
+             // Local check for UI display
+             const today = new Date();
+             const exp = data.filter(p => {
+                if (p.status !== ProposalStatus.APPROVED || !p.approvalDetail?.expiryDate) return false;
+                const expDate = new Date(p.approvalDetail.expiryDate);
+                const diffDays = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                return diffDays > 0 && diffDays <= 60; // Show warning for 60 days
+             });
+             setExpiringProposals(exp);
+          }
+
         } catch (error) {
           console.error("Failed to fetch proposals", error);
         } finally {
@@ -51,7 +68,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
      return <div className="flex justify-center items-center h-64 text-slate-400"><Loader2 className="animate-spin mr-2"/> กำลังโหลดข้อมูล...</div>;
   }
 
-  // Stats Logic (Based on ALL proposals, independent of filter)
+  // Stats Logic
   const stats = {
     pending: proposals.filter(p => [ProposalStatus.IN_REVIEW, ProposalStatus.PENDING_ADVISOR, ProposalStatus.PENDING_ADMIN_CHECK, ProposalStatus.PENDING_DECISION].includes(p.status)).length,
     revision: proposals.filter(p => [ProposalStatus.REVISION_REQ, ProposalStatus.ADMIN_REJECTED].includes(p.status)).length,
@@ -73,7 +90,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   // Filter Logic
   const filteredProposals = proposals.filter(p => {
-    // 1. Search Term (Code, Titles, Researcher Name)
     const searchLower = searchTerm.toLowerCase();
     const matchSearch = 
       (p.code?.toLowerCase().includes(searchLower) || false) ||
@@ -81,10 +97,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       p.titleEn.toLowerCase().includes(searchLower) ||
       p.researcherName.toLowerCase().includes(searchLower);
 
-    // 2. Status
     const matchStatus = filterStatus === 'ALL' || p.status === filterStatus;
-
-    // 3. Date
     const matchDate = !filterDate || p.submissionDate === filterDate;
 
     return matchSearch && matchStatus && matchDate;
@@ -126,7 +139,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </button>
         </div>
 
-        {/* Researcher Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <StatCard label="รอพิจารณา" count={stats.pending} color="border-yellow-200 text-yellow-600" icon={Clock} />
           <StatCard label="ต้องแก้ไข" count={stats.revision} color="border-orange-200 text-orange-600" icon={AlertTriangle} />
@@ -134,7 +146,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <StatCard label="ไม่อนุมัติ" count={stats.rejected} color="border-red-200 text-red-600" icon={XCircle} />
         </div>
 
-        {/* Researcher Proposal List with Basic Search */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
             <h3 className="font-semibold text-slate-700 flex items-center gap-2">
@@ -223,6 +234,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <p className="text-slate-500">ภาพรวมการดำเนินงานจริยธรรมการวิจัย</p>
         </div>
       </div>
+
+      {/* Expiry Warning for Admin */}
+      {user.role === Role.ADMIN && expiringProposals.length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 animate-pulse">
+             <h3 className="text-red-800 font-bold flex items-center gap-2 mb-2">
+                <AlertTriangle size={20} /> แจ้งเตือน: มี {expiringProposals.length} โครงการที่ใบรับรองใกล้หมดอายุ (ภายใน 60 วัน)
+             </h3>
+             <div className="flex gap-2 overflow-x-auto pb-2">
+                {expiringProposals.map(p => (
+                   <button key={p.id} onClick={() => onNavigate('proposal', { id: p.id })} className="flex items-center gap-2 bg-white px-3 py-1 rounded border border-red-200 text-sm hover:bg-red-50 text-red-700 whitespace-nowrap">
+                      <Calendar size={12} /> {p.code} ({p.approvalDetail?.expiryDate})
+                   </button>
+                ))}
+             </div>
+          </div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

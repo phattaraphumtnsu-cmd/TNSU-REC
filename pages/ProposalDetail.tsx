@@ -336,7 +336,15 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                           <div key={idx} className="text-sm bg-slate-50 p-3 rounded border border-slate-100 flex justify-between items-center">
                              <div>
                                 <span className="font-medium text-slate-800 mr-2">ครั้งที่ {rev.revisionCount}</span>
-                                <span className="text-slate-500 text-xs">เมื่อ {rev.submittedDate}</span>
+                                <span className="text-slate-500 text-xs">
+                                   เมื่อ {new Date(rev.submittedDate).toLocaleString('th-TH', { 
+                                     year: 'numeric', 
+                                     month: 'short', 
+                                     day: 'numeric',
+                                     hour: '2-digit',
+                                     minute: '2-digit'
+                                   })}
+                                </span>
                              </div>
                              <div className="flex gap-2">
                                 <a href={rev.fileLink} target="_blank" className="text-blue-600 hover:underline text-xs bg-white px-2 py-1 rounded border">ไฟล์แนบ</a>

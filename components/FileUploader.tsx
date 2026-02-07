@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { uploadFile } from '../services/storage';
 import { UploadCloud, CheckCircle, FileText, X, Loader2 } from 'lucide-react';
 
@@ -23,6 +24,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [progress, setProgress] = useState(0);
   const [fileUrl, setFileUrl] = useState(currentUrl);
   const [fileName, setFileName] = useState('');
+
+  useEffect(() => {
+    setFileUrl(currentUrl);
+  }, [currentUrl]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -91,7 +96,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
                  <FileText size={20} />
               </div>
               <div className="min-w-0">
-                 <p className="text-sm font-medium text-blue-900 truncate">{fileName || 'ไฟล์ที่อัปโหลดเรียบร้อย'}</p>
+                 <p className="text-sm font-medium text-blue-900 truncate">{fileName || (fileUrl.includes('firebasestorage') ? 'ไฟล์ที่อัปโหลดเรียบร้อย' : fileUrl)}</p>
                  <a href={fileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">ดูไฟล์</a>
               </div>
            </div>
