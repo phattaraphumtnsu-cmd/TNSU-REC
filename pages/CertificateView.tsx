@@ -54,7 +54,7 @@ const CertificateView: React.FC<CertificateViewProps> = ({ id, onNavigate }) => 
          {/* Header */}
          <div className="text-center mb-10">
             <div className="w-24 h-24 mx-auto mb-4">
-                <img src="https://upload.wikimedia.org/wikipedia/th/e/e0/TNSU_Logo.png" alt="TNSU Logo" className="w-full h-full object-contain" />
+                <img src="https://lh3.googleusercontent.com/d/1cRjmEPgytoyDLRYvoegnN3OaqrayaF-c" alt="TNSU Logo" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-2xl font-bold uppercase tracking-wide mb-2">Certificate of Approval</h1>
             <h2 className="text-lg text-slate-600">Human Research Ethics Committee</h2>
@@ -131,4 +131,3 @@ const CertificateView: React.FC<CertificateViewProps> = ({ id, onNavigate }) => 
 };
 
 export default CertificateView;
-    

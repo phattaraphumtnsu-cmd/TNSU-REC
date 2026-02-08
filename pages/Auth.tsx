@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { CAMPUSES, FACULTIES, Role, SCHOOLS, UserType, User } from '../types';
@@ -52,8 +53,25 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
       const user = await db.login(email, password);
       onLogin(user);
     } catch (err: any) {
-      console.error(err);
-      setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือเกิดข้อผิดพลาดในการเชื่อมต่อ');
+      const errCode = err.code || '';
+      const errMsg = err.message || '';
+
+      if (errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) {
+         console.warn("Login failed: Invalid credential");
+         setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+      } else if (errCode === 'auth/user-not-found') {
+         console.warn("Login failed: User not found");
+         setError('ไม่พบผู้ใช้งานในระบบ');
+      } else if (errCode === 'auth/wrong-password') {
+         console.warn("Login failed: Wrong password");
+         setError('รหัสผ่านไม่ถูกต้อง');
+      } else if (errCode === 'auth/too-many-requests') {
+         console.warn("Login failed: Too many requests");
+         setError('มีการพยายามเข้าสู่ระบบมากเกินไป กรุณารอสักครู่แล้วลองใหม่');
+      } else {
+         console.error("Login error:", err);
+         setError(errMsg || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+      }
     } finally {
       setLoading(false);
     }
@@ -83,7 +101,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
       onLogin(newUser);
     } catch (err: any) {
       console.error(err);
-      setError('การลงทะเบียนล้มเหลว: ' + (err.message || 'โปรดลองอีกครั้ง'));
+      if (err.code === 'auth/email-already-in-use') {
+         setError('อีเมลนี้ถูกใช้งานแล้ว');
+      } else {
+         setError('การลงทะเบียนล้มเหลว: ' + (err.message || 'โปรดลองอีกครั้ง'));
+      }
     } finally {
       setLoading(false);
     }
@@ -154,7 +176,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
           <div className="z-10">
             <div className="w-28 h-28 bg-white rounded-full flex items-center justify-center mb-6 shadow-lg p-3 mx-auto md:mx-0">
                <img 
-                 src="https://upload.wikimedia.org/wikipedia/th/e/e0/TNSU_Logo.png" 
+                 src="https://lh3.googleusercontent.com/d/1cRjmEPgytoyDLRYvoegnN3OaqrayaF-c" 
                  alt="TNSU Logo" 
                  className="w-full h-full object-contain"
                  referrerPolicy="no-referrer"
@@ -169,7 +191,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
                </div>
                <div className="flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div>
-                 <span>ติดตามสถานะแบบ Real-time</span>
+                 <span>ติดตามสถานะและรับ E-Certificate</span>
                </div>
                <div className="flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-blue-300"></div>

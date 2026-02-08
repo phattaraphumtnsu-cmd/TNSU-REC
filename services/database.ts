@@ -20,9 +20,11 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   sendPasswordResetEmail,
-  User as FirebaseUser 
+  User as FirebaseUser,
+  getAuth
 } from 'firebase/auth';
-import { auth, dbFirestore } from '../firebaseConfig';
+import { initializeApp, deleteApp, FirebaseApp } from 'firebase/app';
+import { auth, dbFirestore, firebaseConfig } from '../firebaseConfig';
 import { Proposal, ProposalStatus, Review, Role, User, Notification, ProgressReport, RevisionLog, AuditLog } from '../types';
 
 class DatabaseService {
@@ -84,31 +86,59 @@ class DatabaseService {
   }
 
   async register(user: Omit<User, 'id'>, password: string): Promise<User> {
-    const userCredential = await createUserWithEmailAndPassword(auth, user.email, password);
-    const uid = userCredential.user.uid;
-    const newUser: User = { ...user, id: uid };
-    const { password: _, ...userToSave } = newUser as any; 
+    // If we are currently logged in (e.g. Admin creating a user), we must use a secondary app
+    // to avoid logging out the current user.
+    const isSecondaryCreation = !!this.currentUser;
     
-    await setDoc(doc(dbFirestore, 'users', uid), {
-        ...userToSave,
-        isDeleted: false,
-        createdAt: new Date().toISOString()
-    });
-    
-    // Log registration (using system/self as actor)
-    const auditRef = collection(dbFirestore, 'audit_logs');
-    await addDoc(auditRef, {
-        action: 'REGISTER',
-        actorId: uid,
-        actorName: user.name,
-        actorRole: user.role,
-        targetId: uid,
-        details: `Registered as ${user.role}`,
-        timestamp: new Date().toISOString()
-    });
-    
-    this.currentUser = newUser;
-    return newUser;
+    let targetAuth = auth;
+    let secondaryApp: FirebaseApp | undefined = undefined;
+
+    if (isSecondaryCreation) {
+        // Create a temporary secondary app to handle the new user creation without affecting current session
+        secondaryApp = initializeApp(firebaseConfig, `SecondaryApp-${Date.now()}`);
+        targetAuth = getAuth(secondaryApp);
+    }
+
+    try {
+        const userCredential = await createUserWithEmailAndPassword(targetAuth, user.email, password);
+        const uid = userCredential.user.uid;
+        const newUser: User = { ...user, id: uid };
+        const { password: _, ...userToSave } = newUser as any; 
+        
+        // Save to Firestore (main instance)
+        await setDoc(doc(dbFirestore, 'users', uid), {
+            ...userToSave,
+            isDeleted: false,
+            createdAt: new Date().toISOString()
+        });
+        
+        // Log registration
+        const auditRef = collection(dbFirestore, 'audit_logs');
+        await addDoc(auditRef, {
+            action: 'REGISTER',
+            actorId: isSecondaryCreation ? this.currentUser?.id : uid,
+            actorName: isSecondaryCreation ? this.currentUser?.name : user.name,
+            actorRole: isSecondaryCreation ? this.currentUser?.role : user.role,
+            targetId: uid,
+            details: `Registered new user: ${user.name} (${user.role})`,
+            timestamp: new Date().toISOString()
+        });
+        
+        // If this was self-registration, update current user. 
+        // If Admin created it, DO NOT update currentUser.
+        if (!isSecondaryCreation) {
+            this.currentUser = newUser;
+        } else if (secondaryApp) {
+             // Sign out the secondary auth so it doesn't leave lingering sessions
+             await signOut(targetAuth);
+             await deleteApp(secondaryApp);
+        }
+
+        return newUser;
+    } catch (e: any) {
+        if (secondaryApp) await deleteApp(secondaryApp);
+        throw e;
+    }
   }
 
   async resetPassword(email: string): Promise<boolean> {
@@ -127,8 +157,6 @@ class DatabaseService {
       const snapshot = await getDocs(q);
       return !snapshot.empty;
     } catch (e) {
-      // In case of permission errors (e.g. first run quirks), assume false to allow bootstrap attempt.
-      // Firebase Auth will still prevent overwriting an existing email.
       console.warn("Error checking admin existence (defaulting to false):", e);
       return false;
     }
@@ -234,7 +262,7 @@ class DatabaseService {
 
         const newProposalRef = doc(collection(dbFirestore, 'proposals'));
         
-        const newProposalData = {
+        const newProposalData: any = {
             ...p,
             code,
             revisionCount: 0,
@@ -247,6 +275,13 @@ class DatabaseService {
             createdAt: new Date().toISOString(),
             updatedDate: new Date().toISOString().split('T')[0],
         };
+
+        // Remove undefined fields (e.g. advisorName if undefined) to prevent Firestore errors
+        Object.keys(newProposalData).forEach(key => {
+            if (newProposalData[key] === undefined) {
+                delete newProposalData[key];
+            }
+        });
 
         transaction.set(counterRef, { count: newCount }, { merge: true });
         transaction.set(newProposalRef, newProposalData);
@@ -303,6 +338,13 @@ class DatabaseService {
                 transaction.set(counterRef, { count: newCount }, { merge: true });
             }
         }
+
+        // Sanitize updates
+        Object.keys(finalUpdates).forEach(key => {
+            if ((finalUpdates as any)[key] === undefined) {
+                delete (finalUpdates as any)[key];
+            }
+        });
 
         transaction.update(proposalRef, finalUpdates);
     }).then(async () => {
@@ -417,7 +459,6 @@ class DatabaseService {
     }
   }
 
-  // Helper to write to 'mail' collection (requires 'Trigger Email' extension)
   private async queueEmail(to: string, subject: string, html: string) {
       const mailRef = collection(dbFirestore, 'mail');
       await addDoc(mailRef, {
@@ -480,7 +521,6 @@ class DatabaseService {
   }
 
   async getAuditLogs(): Promise<AuditLog[]> {
-      // For Admin Reports
       const logsRef = collection(dbFirestore, 'audit_logs');
       const q = query(logsRef, orderBy('timestamp', 'desc'), limit(100));
       try {
@@ -493,7 +533,6 @@ class DatabaseService {
       }
   }
 
-  // 3.2 Auto Check Expiry (Run this when Admin opens Dashboard)
   async checkExpiringCertificates() {
       if (!this.currentUser || this.currentUser.role !== Role.ADMIN) return;
 
@@ -514,16 +553,8 @@ class DatabaseService {
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
           if (diffDays > 0 && diffDays <= warningThreshold) {
-              // Check if notification already sent recently (optimization omitted for brevity, assuming admin handles dupes or check logs)
-              // Ideally, check if we notified in the last 7 days. For now, we notify admin to take action.
-              
-              // Only alert if we haven't alerted recently? 
-              // Simple implementation: Send notification to Researcher
               if (p.researcherId) {
-                  // This acts as the automated system trigger
-                  // In real system, this would be a Cron Job.
-                  // To prevent spamming on every refresh, we could store 'lastExpiryAlert' field on proposal
-                  // But for this request, I'll log it as a notification.
+                  // Alert logic here
               }
           }
       });

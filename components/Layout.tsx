@@ -70,9 +70,9 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
       <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col shrink-0 z-20">
         <div className="p-6 border-b border-slate-700">
           <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center p-0.5">
+            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center p-0.5">
                <img 
-                 src="https://upload.wikimedia.org/wikipedia/th/e/e0/TNSU_Logo.png" 
+                 src="https://lh3.googleusercontent.com/d/1cRjmEPgytoyDLRYvoegnN3OaqrayaF-c" 
                  alt="Logo" 
                  className="w-full h-full object-contain" 
                  referrerPolicy="no-referrer"

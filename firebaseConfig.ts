@@ -1,10 +1,11 @@
+
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyBhX2UHdw1_rw2gyP08DRaCyg1W1q7mg00",
   authDomain: "tnsurec.firebaseapp.com",
   projectId: "tnsurec",

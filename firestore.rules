@@ -12,7 +12,9 @@ service cloud.firestore {
     }
 
     function hasRole(role) {
-      return isSignedIn() && getUserData().role == role;
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData().role == role;
     }
 
     function isAdmin() {
@@ -24,15 +26,16 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow read if signed in OR if the document being read has role 'ADMIN'
-      // This allows the "checkAnyAdminExists" query (where role == 'ADMIN') to pass for unauthenticated users
-      allow read: if isSignedIn() || resource.data.role == 'ADMIN';
+      // Allow read if signed in (open for finding advisors)
+      allow read: if isSignedIn();
       
-      // Allow creation if user is authenticated (Auth creates user first) and ID matches
-      // Security: Only allow creating 'ADMIN' role if email is the bootstrap email
-      allow create: if isSignedIn() && request.auth.uid == userId && (
-        request.resource.data.role != 'ADMIN' || 
-        request.resource.data.email == 'admin@tnsu.ac.th'
+      // Allow creation if Admin OR if self-registration
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        (request.auth.uid == userId && (
+          request.resource.data.role != 'ADMIN' || 
+          request.resource.data.email == 'admin@tnsu.ac.th'
+        ))
       );
 
       allow update: if isSignedIn() && (
