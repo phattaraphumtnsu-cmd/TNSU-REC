@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Proposal, ProposalStatus, Role, Vote, Review, User, ReviewType, ReportType, Permission, hasPermission } from '../types';
-import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info } from 'lucide-react';
+import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users } from 'lucide-react';
 
 interface ProposalDetailProps {
   id: string;
@@ -41,6 +41,9 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   const [reportType, setReportType] = useState<ReportType>(ReportType.PROGRESS_6_MONTH);
   const [reportLink, setReportLink] = useState('');
   const [reportDesc, setReportDesc] = useState('');
+  
+  // UI State
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -357,110 +360,190 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
              )}
           </div>
 
-          {/* Feedback & Revision Submission Section */}
-          {(hasPermission(user.role, Permission.FINALIZE_DECISION) || hasPermission(user.role, Permission.SUBMIT_REVISION)) && (feedbackToShow || feedbackFileToShow) && (
-            <div className={`bg-white border rounded-xl shadow-sm overflow-hidden ${isRejectedByAdmin ? 'border-red-200 ring-2 ring-red-50' : 'border-orange-200'}`}>
-               <div className={`${isRejectedByAdmin ? 'bg-red-50 border-red-100' : 'bg-orange-50 border-orange-100'} border-b p-4`}>
-                  <h3 className={`font-semibold ${isRejectedByAdmin ? 'text-red-800' : 'text-orange-800'} flex items-center gap-2`}>
-                    <AlertTriangle size={20} /> 
-                    {isRejectedByAdmin ? 'สิ่งที่ต้องแก้ไข (จากเจ้าหน้าที่)' : 'ข้อเสนอแนะจากคณะกรรมการ (Feedback)'}
+          {/* New: Review Progress for Admin */}
+          {user.role === Role.ADMIN && proposal.reviewers && proposal.reviewers.length > 0 && (
+             <div className="bg-white rounded-xl shadow-sm border border-blue-200 overflow-hidden mb-6">
+               <div className="bg-blue-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
+                  <h3 className="font-bold text-blue-800 flex items-center gap-2">
+                     <Users size={20} /> ติดตามสถานะการพิจารณา (Review Progress)
                   </h3>
+                  <span className="bg-white text-blue-600 px-3 py-1 rounded-full text-xs font-bold border border-blue-200">
+                     {proposal.reviews?.length || 0} / {proposal.reviewers.length} คน
+                  </span>
                </div>
-               <div className="p-6">
-                  {feedbackToShow && (
-                      <div className={`p-4 rounded-lg border text-slate-700 whitespace-pre-wrap mb-4 font-mono text-sm leading-relaxed ${isRejectedByAdmin ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-                          {feedbackToShow}
-                      </div>
-                  )}
-                  {feedbackFileToShow && (
-                      <div className="mb-6">
-                         <a href={feedbackFileToShow} target="_blank" rel="noreferrer" className="flex items-center gap-3 bg-white p-3 rounded-lg border border-orange-200 hover:bg-orange-50 text-orange-800 transition-colors w-full sm:w-fit shadow-sm group">
-                             <div className="bg-orange-100 p-2 rounded group-hover:bg-orange-200 transition-colors">
-                                <FileText size={20} />
-                             </div>
-                             <div className="text-sm font-medium">
-                                ดาวน์โหลดเอกสารข้อเสนอแนะ <br/>
-                                <span className="text-xs font-normal opacity-75">คลิกเพื่อเปิดไฟล์</span>
-                             </div>
-                         </a>
-                      </div>
-                  )}
+               <div className="divide-y divide-slate-100">
+                  {proposal.reviewers.map((reviewerId, index) => {
+                     const reviewerInfo = reviewersList.find(u => u.id === reviewerId);
+                     const reviewData = proposal.reviews?.find(r => r.reviewerId === reviewerId);
 
-                  {/* Revision Submission Form for Researcher */}
-                  {hasPermission(user.role, Permission.SUBMIT_REVISION) && (isRevisionReq || isRejectedByAdmin) && (
-                     <div className="mt-6 pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-4">
-                        <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                           <Send size={18} className="text-blue-600" /> ส่งแบบขอแก้ไข (Submit Revision)
-                        </h4>
-                        
-                        <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800 mb-4 flex items-start gap-2">
-                           <Info size={16} className="mt-0.5 flex-shrink-0" />
-                           <p>
-                              <span className="font-bold">คำแนะนำ:</span> กรุณาจัดการไฟล์แก้ไขใน Google Drive (อาจสร้าง Folder ใหม่ เช่น "Revision 1") 
-                              ตรวจสอบสิทธิ์ให้เป็น <u>Everyone</u> แล้วนำลิงก์มาวาง
-                           </p>
-                        </div>
-
-                        <div className="space-y-4">
-                           <div>
-                              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                                 1. ลิงก์ไฟล์แก้ไข (Google Drive) <span className="text-red-500">*</span>
-                              </label>
-                              <div className="relative">
-                                 <ExternalLink className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                                 <input 
-                                    type="url" 
-                                    placeholder="https://drive.google.com/..." 
-                                    className="w-full border border-slate-300 pl-10 pr-3 py-2.5 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                    value={revisionLink} 
-                                    onChange={e => setRevisionLink(e.target.value)} 
-                                 />
+                     return (
+                        <div key={reviewerId} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50">
+                           <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${reviewData ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                                 {index + 1}
+                              </div>
+                              <div>
+                                 <div className="font-medium text-slate-800">
+                                    {reviewerInfo ? reviewerInfo.name : 'Unknown Reviewer'}
+                                 </div>
+                                 <div className="text-xs text-slate-500">
+                                    {reviewerInfo?.faculty || 'Reviewer'}
+                                 </div>
                               </div>
                            </div>
                            <div>
-                              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                                 2. ลิงก์บันทึกข้อความชี้แจง (ถ้ามี)
-                              </label>
-                              <div className="relative">
-                                 <FileText className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                                 <input 
-                                    type="url" 
-                                    placeholder="https://drive.google.com/..." 
-                                    className="w-full border border-slate-300 pl-10 pr-3 py-2.5 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                    value={revisionNoteLink} 
-                                    onChange={e => setRevisionNoteLink(e.target.value)} 
-                                 />
-                              </div>
-                              <p className="text-xs text-slate-500 mt-1">เอกสารตารางชี้แจงการแก้ไข (Memo) เพื่อให้กรรมการตรวจสอบได้ง่ายขึ้น</p>
+                              {reviewData ? (
+                                 <div className="text-right">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
+                                       reviewData.vote === Vote.APPROVE ? 'bg-green-100 text-green-700' : 
+                                       reviewData.vote === Vote.FIX ? 'bg-orange-100 text-orange-700' : 
+                                       'bg-red-100 text-red-700'
+                                    }`}>
+                                       {reviewData.vote === Vote.APPROVE ? <CheckCircle size={12}/> : <AlertCircle size={12}/>}
+                                       {reviewData.vote}
+                                    </span>
+                                    <div className="text-[10px] text-slate-400 mt-1">
+                                       {new Date(reviewData.submittedAt).toLocaleDateString('th-TH')}
+                                    </div>
+                                 </div>
+                              ) : (
+                                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-500">
+                                    <Clock size={12} /> รอพิจารณา
+                                 </span>
+                              )}
                            </div>
-
-                           <div className="flex items-center gap-2 py-2">
-                             <input 
-                               type="checkbox" 
-                               id="confirmRevise" 
-                               checked={confirmRevise} 
-                               onChange={e => setConfirmRevise(e.target.checked)}
-                               className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
-                             />
-                             <label htmlFor="confirmRevise" className="text-sm text-slate-700 cursor-pointer select-none">
-                               ข้าพเจ้าได้ดำเนินการแก้ไขเอกสารตามข้อเสนอแนะครบถ้วนแล้ว
-                             </label>
-                           </div>
-
-                           <button 
-                              onClick={handleResearcherRevise} 
-                              disabled={!confirmRevise}
-                              className={`w-full py-3 rounded-lg font-semibold shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 mt-2 
-                                ${confirmRevise 
-                                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-                           >
-                              <Send size={18} /> ยืนยันส่งข้อมูลการแก้ไข
-                           </button>
                         </div>
-                     </div>
-                  )}
+                     );
+                  })}
                </div>
+             </div>
+          )}
+
+          {/* Feedback & Revision Submission Section - IMPROVED UI */}
+          {(hasPermission(user.role, Permission.FINALIZE_DECISION) || hasPermission(user.role, Permission.SUBMIT_REVISION)) && (feedbackToShow || feedbackFileToShow) && (
+            <div className={`bg-white border rounded-xl shadow-md overflow-hidden transition-all duration-300 ${isRejectedByAdmin ? 'border-red-200 ring-4 ring-red-50/50' : 'border-orange-200 ring-4 ring-orange-50/50'} mb-6`}>
+               <div 
+                  className={`flex justify-between items-center p-4 cursor-pointer ${isRejectedByAdmin ? 'bg-red-50 hover:bg-red-100' : 'bg-orange-50 hover:bg-orange-100'} transition-colors`}
+                  onClick={() => setIsFeedbackOpen(!isFeedbackOpen)}
+               >
+                  <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-full ${isRejectedByAdmin ? 'bg-red-200 text-red-700' : 'bg-orange-200 text-orange-700'}`}>
+                          <AlertTriangle size={24} />
+                      </div>
+                      <div>
+                          <h3 className={`font-bold text-lg ${isRejectedByAdmin ? 'text-red-900' : 'text-orange-900'}`}>
+                              {isRejectedByAdmin ? 'สิ่งที่ต้องแก้ไข (จากเจ้าหน้าที่)' : 'มติคณะกรรมการ: ให้แก้ไข (Revision Required)'}
+                          </h3>
+                          <p className={`text-sm ${isRejectedByAdmin ? 'text-red-700' : 'text-orange-700'}`}>
+                              {isRejectedByAdmin ? 'ข้อเสนอแนะจากเจ้าหน้าที่ (Admin Feedback)' : 'ข้อสรุปจากคณะกรรมการ (Committee Consensus)'}
+                          </p>
+                      </div>
+                  </div>
+                  {isFeedbackOpen ? <ChevronUp className={isRejectedByAdmin ? 'text-red-500' : 'text-orange-500'} /> : <ChevronDown className={isRejectedByAdmin ? 'text-red-500' : 'text-orange-500'} />}
+               </div>
+               
+               {isFeedbackOpen && (
+                  <div className="p-6 bg-white animate-in slide-in-from-top-2 fade-in duration-200">
+                      {feedbackToShow && (
+                          <div className="mb-6">
+                              <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><MessageSquare size={14}/> รายละเอียดข้อเสนอแนะ</h4>
+                              <div className={`p-5 rounded-xl border text-slate-800 whitespace-pre-wrap font-sans text-base leading-relaxed shadow-inner ${isRejectedByAdmin ? 'bg-red-50/30 border-red-100' : 'bg-orange-50/30 border-orange-100'}`}>
+                                  {feedbackToShow}
+                              </div>
+                          </div>
+                      )}
+                      {feedbackFileToShow && (
+                          <div className="mb-6">
+                              <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1"><FileText size={14}/> เอกสารประกอบ</h4>
+                              <a href={feedbackFileToShow} target="_blank" rel="noreferrer" className="flex items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all group w-full md:w-fit">
+                                  <div className="bg-blue-100 p-3 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                      <FileText size={24} />
+                                  </div>
+                                  <div>
+                                      <div className="font-semibold text-slate-800 group-hover:text-blue-700">ดาวน์โหลดเอกสารข้อเสนอแนะฉบับเต็ม</div>
+                                      <div className="text-xs text-slate-500">คลิกเพื่อเปิดไฟล์ PDF/Word</div>
+                                  </div>
+                                  <ExternalLink size={16} className="text-slate-400 group-hover:text-blue-500 ml-2" />
+                              </a>
+                          </div>
+                      )}
+
+                      {/* Revision Submission Form for Researcher */}
+                      {hasPermission(user.role, Permission.SUBMIT_REVISION) && (isRevisionReq || isRejectedByAdmin) && (
+                         <div className="mt-8 pt-8 border-t border-slate-100">
+                            <h4 className="font-bold text-xl text-slate-800 mb-4 flex items-center gap-2">
+                               <Send size={24} className="text-blue-600" /> ส่งแบบขอแก้ไข (Submit Revision)
+                            </h4>
+                            
+                            <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800 mb-6 flex items-start gap-3 border border-blue-100">
+                               <Info size={20} className="mt-0.5 flex-shrink-0 text-blue-600" />
+                               <div>
+                                  <p className="font-bold mb-1">คำแนะนำการส่งแก้ไข:</p> 
+                                  <p>กรุณาจัดการไฟล์แก้ไขใน Google Drive (อาจสร้าง Folder ใหม่ เช่น "Revision 1") ตรวจสอบสิทธิ์ให้เป็น <u>Everyone (Anyone with the link)</u> แล้วนำลิงก์มาวางด้านล่าง</p>
+                               </div>
+                            </div>
+
+                            <div className="space-y-5 bg-slate-50/50 p-6 rounded-xl border border-slate-200">
+                               <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                     1. ลิงก์ไฟล์แก้ไข (Google Drive) <span className="text-red-500">*</span>
+                                  </label>
+                                  <div className="relative">
+                                     <ExternalLink className="absolute left-3 top-3 text-slate-400" size={18} />
+                                     <input 
+                                        type="url" 
+                                        placeholder="https://drive.google.com/..." 
+                                        className="w-full border border-slate-300 pl-10 pr-4 py-3 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+                                        value={revisionLink} 
+                                        onChange={e => setRevisionLink(e.target.value)} 
+                                     />
+                                  </div>
+                               </div>
+                               <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                                     2. ลิงก์บันทึกข้อความชี้แจง (ถ้ามี)
+                                  </label>
+                                  <div className="relative">
+                                     <FileText className="absolute left-3 top-3 text-slate-400" size={18} />
+                                     <input 
+                                        type="url" 
+                                        placeholder="https://drive.google.com/..." 
+                                        className="w-full border border-slate-300 pl-10 pr-4 py-3 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
+                                        value={revisionNoteLink} 
+                                        onChange={e => setRevisionNoteLink(e.target.value)} 
+                                     />
+                                  </div>
+                                  <p className="text-xs text-slate-500 mt-1">เอกสารตารางชี้แจงการแก้ไข (Memo) เพื่อให้กรรมการตรวจสอบได้ง่ายขึ้น</p>
+                               </div>
+
+                               <div className="flex items-center gap-3 py-2 bg-white p-3 rounded-lg border border-slate-200">
+                                 <input 
+                                   type="checkbox" 
+                                   id="confirmRevise" 
+                                   checked={confirmRevise} 
+                                   onChange={e => setConfirmRevise(e.target.checked)}
+                                   className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                                 />
+                                 <label htmlFor="confirmRevise" className="text-sm font-medium text-slate-700 cursor-pointer select-none">
+                                   ข้าพเจ้าได้ดำเนินการแก้ไขเอกสารตามข้อเสนอแนะครบถ้วนแล้ว
+                                 </label>
+                               </div>
+
+                               <button 
+                                  onClick={handleResearcherRevise} 
+                                  disabled={!confirmRevise}
+                                  className={`w-full py-3.5 rounded-lg font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 
+                                    ${confirmRevise 
+                                      ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg' 
+                                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                               >
+                                  <Send size={20} /> ยืนยันส่งข้อมูลการแก้ไข
+                               </button>
+                            </div>
+                         </div>
+                      )}
+                  </div>
+               )}
             </div>
           )}
 

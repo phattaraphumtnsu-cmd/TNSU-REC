@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { db } from '../services/database';
 import { CAMPUSES, FACULTIES, Role, SCHOOLS, UserType, User } from '../types';
-import { User as UserIcon, Lock, HelpCircle, ArrowLeft, Mail, Key, Loader2, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { User as UserIcon, Lock, HelpCircle, ArrowLeft, Mail, Key, Loader2 } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -15,9 +15,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
   const [view, setView] = useState<AuthView>('LOGIN');
   const [loading, setLoading] = useState(false);
   
-  // System State (Check if admin exists)
-  const [hasAdmin, setHasAdmin] = useState<boolean>(true);
-
   // Login State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,15 +32,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
 
   // Forgot Password State
   const [resetEmail, setResetEmail] = useState('');
-
-  useEffect(() => {
-     // Check if system needs initialization
-     const checkAdmin = async () => {
-         const exists = await db.checkAnyAdminExists();
-         setHasAdmin(exists);
-     };
-     checkAdmin();
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,30 +113,6 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
     }
   };
 
-  const handleInitializeSystem = async () => {
-      if(!window.confirm("คุณต้องการสร้างบัญชี Admin เริ่มต้นหรือไม่?\nEmail: admin@tnsu.ac.th\nPassword: admin1234")) return;
-      
-      setLoading(true);
-      try {
-          await db.register({
-              name: 'System Administrator',
-              email: 'admin@tnsu.ac.th',
-              role: Role.ADMIN,
-              campus: 'ส่วนกลาง',
-              faculty: 'สำนักงานอธิการบดี'
-          }, 'admin1234');
-          
-          alert('สร้างบัญชี Admin สำเร็จ!\nกรุณาเข้าสู่ระบบด้วย:\nEmail: admin@tnsu.ac.th\nPassword: admin1234');
-          setHasAdmin(true);
-          setEmail('admin@tnsu.ac.th');
-          setPassword('admin1234');
-      } catch (e: any) {
-          alert("ไม่สามารถสร้างบัญชีได้: " + e.message);
-      } finally {
-          setLoading(false);
-      }
-  };
-
   const getTitle = () => {
     switch(view) {
       case 'LOGIN': return 'เข้าสู่ระบบ';
@@ -204,25 +168,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
         {/* Right Side: Form */}
         <div className="md:w-1/2 p-10 py-12">
           
-          {/* First Time Setup Alert */}
-          {!hasAdmin && view === 'LOGIN' && (
-              <div className="mb-6 bg-orange-50 border border-orange-200 rounded-xl p-4 animate-bounce-short">
-                  <h3 className="text-orange-800 font-bold flex items-center gap-2 mb-2">
-                      <AlertTriangle size={20} /> เริ่มต้นระบบครั้งแรก
-                  </h3>
-                  <p className="text-sm text-orange-700 mb-3">
-                      ตรวจไม่พบผู้ดูแลระบบ (Admin) ในฐานข้อมูล กรุณากดปุ่มด้านล่างเพื่อสร้างบัญชีเริ่มต้น
-                  </p>
-                  <button 
-                      onClick={handleInitializeSystem}
-                      disabled={loading}
-                      className="w-full bg-orange-600 text-white text-sm py-2 rounded-lg hover:bg-orange-700 flex items-center justify-center gap-2 font-medium"
-                  >
-                      {loading ? <Loader2 className="animate-spin" size={16}/> : <ShieldCheck size={16}/>}
-                      สร้างบัญชี Admin เริ่มต้น
-                  </button>
-              </div>
-          )}
+          {/* Removed First Time Setup Alert */}
 
           <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
             {getTitle()}
