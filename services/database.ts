@@ -20,12 +20,13 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   sendPasswordResetEmail,
+  updatePassword,
   User as FirebaseUser,
   getAuth
 } from 'firebase/auth';
 import { initializeApp, deleteApp, FirebaseApp } from 'firebase/app';
 import { auth, dbFirestore, firebaseConfig } from '../firebaseConfig';
-import { Proposal, ProposalStatus, Review, Role, User, Notification, ProgressReport, RevisionLog, AuditLog } from '../types';
+import { Proposal, ProposalStatus, Review, Role, User, Notification, ProgressReport, RevisionLog, AuditLog, SurveyResponse } from '../types';
 
 class DatabaseService {
   currentUser: User | null = null;
@@ -150,6 +151,11 @@ class DatabaseService {
       return false;
     }
   }
+  
+  async changePassword(newPassword: string): Promise<void> {
+      if (!auth.currentUser) throw new Error("No user logged in");
+      await updatePassword(auth.currentUser, newPassword);
+  }
 
   async checkAnyAdminExists(): Promise<boolean> {
     try {
@@ -183,6 +189,12 @@ class DatabaseService {
   async updateUser(id: string, updates: Partial<User>) {
     const userRef = doc(dbFirestore, 'users', id);
     await updateDoc(userRef, updates);
+    
+    // Update local state if it's the current user
+    if (this.currentUser && this.currentUser.id === id) {
+        this.currentUser = { ...this.currentUser, ...updates };
+    }
+    
     await this.logActivity('UPDATE_USER', id, `Updated fields: ${Object.keys(updates).join(', ')}`);
   }
 
@@ -430,6 +442,38 @@ class DatabaseService {
       });
       await this.updateProposal(proposalId, { progressReports: updatedReports });
       await this.logActivity('ACKNOWLEDGE_REPORT', proposalId, `Report ${reportId} acknowledged`);
+  }
+
+  // --- Surveys ---
+
+  async submitSurvey(response: Omit<SurveyResponse, 'submittedAt'>) {
+    if (!this.currentUser) return;
+    
+    // We use userId as document ID to ensure one survey per user (easy to update/check status)
+    const surveyRef = doc(dbFirestore, 'surveys', this.currentUser.id);
+    const surveyData: SurveyResponse = {
+        ...response,
+        submittedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+    
+    await setDoc(surveyRef, surveyData);
+    await this.logActivity('SUBMIT_SURVEY', this.currentUser.id, 'Submitted satisfaction survey');
+  }
+
+  async getUserSurveyStatus(userId: string): Promise<SurveyResponse | null> {
+      const surveyRef = doc(dbFirestore, 'surveys', userId);
+      const snap = await getDoc(surveyRef);
+      if (snap.exists()) {
+          return snap.data() as SurveyResponse;
+      }
+      return null;
+  }
+
+  async getAllSurveys(): Promise<SurveyResponse[]> {
+      const q = query(collection(dbFirestore, 'surveys'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => doc.data() as SurveyResponse);
   }
 
   // --- Notifications & Emails ---

@@ -1,5 +1,4 @@
 
-
 export enum Role {
   RESEARCHER = 'RESEARCHER',
   ADVISOR = 'ADVISOR',
@@ -75,6 +74,17 @@ export interface AuditLog {
   targetId: string; // Proposal ID or User ID
   details: string;
   timestamp: string;
+}
+
+export interface SurveyResponse {
+  userId: string;
+  userName: string;
+  role: Role;
+  scores: Record<string, number>; // key "0" to "7" (index of questions)
+  suggestion: string; // General suggestion
+  urgentSuggestion: string; // Urgent improvement needed
+  submittedAt: string;
+  updatedAt?: string;
 }
 
 export interface User {

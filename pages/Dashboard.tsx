@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database'; // Real DB
 import { ProposalStatus, Role, Proposal } from '../types';
-import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2, Calendar } from 'lucide-react';
+import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2, Calendar, CheckCircle } from 'lucide-react';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -336,38 +335,60 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   </td>
                 </tr>
               ) : (
-                filteredProposals.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-mono text-blue-600 mb-1">{p.code || 'รอรหัส'}</span>
-                        <span className="font-medium text-slate-800 line-clamp-1">{p.titleTh}</span>
-                        <span className="text-xs text-slate-500 line-clamp-1">{p.titleEn}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
-                      {p.submissionDate}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      <div className="font-medium text-slate-900">{p.researcherName}</div>
-                      <div className="text-xs text-slate-400">{p.faculty}</div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(p.status)}`}>
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => onNavigate('proposal', { id: p.id })}
-                        className="text-slate-400 hover:text-blue-600 transition-colors p-2"
-                        title={user.role === Role.ADMIN || (user.role === Role.REVIEWER && p.status === ProposalStatus.IN_REVIEW) ? "ตรวจ/แก้ไข" : "ดูรายละเอียด"}
-                      >
-                         {user.role === Role.ADMIN || (user.role === Role.REVIEWER && p.status === ProposalStatus.IN_REVIEW) ? <Edit2 size={18} /> : <Eye size={18} />}
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                filteredProposals.map((p) => {
+                  const isReviewer = user.role === Role.REVIEWER;
+                  const myReview = isReviewer ? p.reviews?.find(r => r.reviewerId === user.id) : null;
+                  
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-mono text-blue-600 mb-1">{p.code || 'รอรหัส'}</span>
+                          <span className="font-medium text-slate-800 line-clamp-1">{p.titleTh}</span>
+                          <span className="text-xs text-slate-500 line-clamp-1">{p.titleEn}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
+                        {p.submissionDate}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        <div className="font-medium text-slate-900">{p.researcherName}</div>
+                        <div className="text-xs text-slate-400">{p.faculty}</div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(p.status)}`}>
+                            {p.status}
+                          </span>
+                          
+                          {/* Reviewer Specific Status Indicator */}
+                          {isReviewer && (
+                             myReview ? (
+                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
+                                 <CheckCircle size={10} /> ประเมินแล้ว ({myReview.vote})
+                               </span>
+                             ) : (
+                                p.status === ProposalStatus.IN_REVIEW && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 animate-pulse">
+                                     <Clock size={10} /> รอท่านประเมิน
+                                  </span>
+                                )
+                             )
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button 
+                          onClick={() => onNavigate('proposal', { id: p.id })}
+                          className="text-slate-400 hover:text-blue-600 transition-colors p-2"
+                          title={user.role === Role.ADMIN || (user.role === Role.REVIEWER && p.status === ProposalStatus.IN_REVIEW) ? "ตรวจ/แก้ไข" : "ดูรายละเอียด"}
+                        >
+                           {user.role === Role.ADMIN || (user.role === Role.REVIEWER && p.status === ProposalStatus.IN_REVIEW) ? <Edit2 size={18} /> : <Eye size={18} />}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
