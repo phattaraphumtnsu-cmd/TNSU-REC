@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Proposal, ProposalStatus, Role, Vote, Review, User, ReviewType, ReportType, Permission, hasPermission } from '../types';
-import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users } from 'lucide-react';
+import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users, PenTool } from 'lucide-react';
 
 interface ProposalDetailProps {
   id: string;
@@ -30,6 +30,8 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   const [adminDecision, setAdminDecision] = useState<Vote>(Vote.APPROVE);
   const [adminFeedback, setAdminFeedback] = useState('');
   const [adminFileLink, setAdminFileLink] = useState('');
+  
+  // Admin Certificate State
   const [adminCertLink, setAdminCertLink] = useState('');
 
   // Researcher Revision State
@@ -141,39 +143,38 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
        consolidatedFileLink: adminFileLink
     };
 
+    let alertMsg = '';
+
     if (adminDecision === Vote.FIX) {
        updates.status = ProposalStatus.REVISION_REQ;
-       alert('บันทึกผล "ให้แก้ไข" เรียบร้อยแล้ว');
+       alertMsg = 'บันทึกผล "ให้แก้ไข" เรียบร้อยแล้ว ระบบจะแจ้งผู้วิจัย';
     } else if (adminDecision === Vote.REJECT) {
        updates.status = ProposalStatus.REJECTED;
-       alert('บันทึกผล "ไม่อนุมัติ" เรียบร้อยแล้ว');
+       alertMsg = 'บันทึกผล "ไม่อนุมัติ" เรียบร้อยแล้ว';
     } else {
-       if (adminCertLink) {
-          updates.status = ProposalStatus.APPROVED;
-          updates.certLink = adminCertLink;
-          updates.nextReportDueDate = new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString().split('T')[0];
-          alert('อนุมัติและออกใบรับรองเรียบร้อยแล้ว');
-       } else {
-          updates.status = ProposalStatus.WAITING_CERT;
-          alert('บันทึกผลอนุมัติเรียบร้อย (สถานะ: รอออกใบรับรอง)');
-       }
+       // APPROVE case: Move to WAITING_CERT first to allow time for signing
+       updates.status = ProposalStatus.WAITING_CERT;
+       alertMsg = 'บันทึกผลอนุมัติเรียบร้อย (สถานะ: รอออกใบรับรอง) - กรุณาดำเนินการออกใบรับรองในขั้นตอนถัดไปเมื่อเอกสารพร้อม';
     }
     
     await db.updateProposal(proposal.id, updates);
+    alert(alertMsg);
     reloadProposal();
   };
 
   const handleAdminIssueCert = async () => {
-     // If cert link provided, save it. Otherwise just approve (assume system generation)
+     // Admin manually confirms cert issuance
      const updates: any = {
         status: ProposalStatus.APPROVED,
         nextReportDueDate: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString().split('T')[0]
      };
+     
+     // Optional: if link provided
      if (adminCertLink) updates.certLink = adminCertLink;
 
      await db.updateProposal(proposal.id, updates);
      setAdminCertLink('');
-     alert('ออกใบรับรองเรียบร้อยแล้ว');
+     alert('ออกใบรับรองและเปลี่ยนสถานะเป็น "อนุมัติ/ได้รับใบรับรอง" เรียบร้อยแล้ว');
      reloadProposal();
   };
 
@@ -225,8 +226,10 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
     if (proposal.status === ProposalStatus.REJECTED) color = 'bg-red-100 text-red-700';
     if (proposal.status === ProposalStatus.REVISION_REQ) color = 'bg-orange-100 text-orange-700';
     if (proposal.status === ProposalStatus.ADMIN_REJECTED) color = 'bg-red-50 text-red-600 border border-red-200';
-    if (proposal.status === ProposalStatus.WAITING_CERT) color = 'bg-purple-100 text-purple-700';
+    // WAITING_CERT should look positive but pending
+    if (proposal.status === ProposalStatus.WAITING_CERT) color = 'bg-teal-100 text-teal-800 border border-teal-200';
     if (proposal.status === ProposalStatus.IN_REVIEW) color = 'bg-blue-100 text-blue-700';
+    
     return <span className={`px-3 py-1 rounded-full text-sm font-semibold ${color}`}>{proposal.status}</span>;
   };
 
@@ -697,28 +700,29 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
           )}
           {hasPermission(user.role, Permission.FINALIZE_DECISION) && proposal.status === ProposalStatus.PENDING_DECISION && (
              <div className="bg-white p-6 rounded-xl shadow-sm border border-purple-200 ring-2 ring-purple-50">
-                <h3 className="font-bold mb-2 text-purple-700">สรุปผลการพิจารณา</h3>
+                <h3 className="font-bold mb-2 text-purple-700"><PenTool size={18} className="inline mr-1"/> สรุปผลการพิจารณา</h3>
                 <div className="space-y-3 mb-4">
                    <select className="w-full p-2 border rounded" value={adminDecision} onChange={(e) => setAdminDecision(e.target.value as Vote)}>
-                      <option value={Vote.APPROVE}>อนุมัติ (ดำเนินการออกใบรับรอง)</option>
+                      <option value={Vote.APPROVE}>อนุมัติ (แจ้งผลผู้วิจัย & รอออกใบรับรอง)</option>
                       <option value={Vote.FIX}>ให้แก้ไข (ส่งคืนผู้วิจัย)</option>
                       <option value={Vote.REJECT}>ไม่อนุมัติ</option>
                    </select>
                 </div>
                 <textarea className="w-full border p-2 rounded-lg mb-3 text-sm" rows={4} placeholder="ข้อความสรุปถึงผู้วิจัย (Feedback Text)..." value={adminFeedback} onChange={e => setAdminFeedback(e.target.value)}></textarea>
                 <div className="mb-4"><label className="block text-xs font-semibold text-purple-800 mb-1">ลิงก์ไฟล์ข้อเสนอแนะ (รวมจากกรรมการ)</label><div className="relative"><Link2 className="absolute left-3 top-2.5 text-slate-400" size={16} /><input type="url" className="w-full border pl-10 pr-3 py-2 rounded-lg text-sm" value={adminFileLink} onChange={e => setAdminFileLink(e.target.value)} /></div></div>
-                {adminDecision === Vote.APPROVE && (
-                   <div className="mb-4 p-3 bg-purple-50 rounded border border-purple-100"><label className="block text-xs font-semibold text-purple-800 mb-1 flex items-center gap-1"><ShieldCheck size={14} /> ลิงก์ใบรับรอง (Certificate Link)</label><div className="relative"><Link2 className="absolute left-3 top-2.5 text-slate-400" size={16} /><input type="url" className="w-full border pl-10 pr-3 py-2 rounded-lg text-sm" placeholder="ใส่ลิงก์ Google Drive (ถ้ามี) หรือกดบันทึกเพื่อออก E-Cert" value={adminCertLink} onChange={e => setAdminCertLink(e.target.value)} /></div></div>
-                )}
                 <button onClick={handleAdminFinalize} className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 font-medium">บันทึกและแจ้งผล</button>
              </div>
           )}
           {hasPermission(user.role, Permission.ISSUE_CERTIFICATE) && proposal.status === ProposalStatus.WAITING_CERT && (
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-purple-200 ring-2 ring-purple-50">
-                <h3 className="font-bold mb-2 text-purple-700 flex items-center gap-2"><ShieldCheck size={20} /> ออกใบรับรอง</h3>
+             <div className="bg-white p-6 rounded-xl shadow-sm border border-teal-200 ring-2 ring-teal-50">
+                <h3 className="font-bold mb-2 text-teal-800 flex items-center gap-2"><ShieldCheck size={20} /> ออกใบรับรอง</h3>
                 
+                <p className="text-sm text-slate-600 mb-4">
+                    โครงการนี้ผ่านการอนุมัติแล้ว ขณะนี้อยู่ในขั้นตอนการออกใบรับรอง (ลงนาม)
+                </p>
+
                 <div className="flex gap-2 mb-4">
-                    <button onClick={() => onNavigate('certificate', { id: proposal.id })} className="flex-1 bg-white border border-purple-200 text-purple-700 py-2 rounded hover:bg-purple-50 flex justify-center items-center gap-2 text-sm">
+                    <button onClick={() => onNavigate('certificate', { id: proposal.id })} className="flex-1 bg-white border border-teal-200 text-teal-700 py-2 rounded hover:bg-teal-50 flex justify-center items-center gap-2 text-sm">
                         <Printer size={16} /> Preview E-Cert
                     </button>
                 </div>
@@ -728,13 +732,13 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                         <div className="w-full border-t border-slate-200"></div>
                     </div>
                     <div className="relative flex justify-center text-xs">
-                        <span className="bg-white px-2 text-slate-500">หรือ แนบลิงก์ไฟล์ภายนอก</span>
+                        <span className="bg-white px-2 text-slate-500">หรือ แนบลิงก์ไฟล์ที่ลงนามแล้ว</span>
                     </div>
                 </div>
 
                 <div className="mb-4"><label className="block text-xs font-semibold text-slate-700 mb-1">ลิงก์ใบรับรอง (Google Drive)</label><div className="relative"><Link2 className="absolute left-3 top-2.5 text-slate-400" size={16} /><input type="url" className="w-full border pl-10 pr-3 py-2 rounded-lg text-sm" value={adminCertLink} onChange={e => setAdminCertLink(e.target.value)} /></div></div>
                 
-                <button onClick={handleAdminIssueCert} className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium flex justify-center items-center gap-2"><FileCheck size={18} /> ยืนยันออกใบรับรอง</button>
+                <button onClick={handleAdminIssueCert} className="w-full bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 font-medium flex justify-center items-center gap-2"><FileCheck size={18} /> ยืนยันออกใบรับรอง (เสร็จสิ้น)</button>
              </div>
           )}
           {proposal.status === ProposalStatus.APPROVED && (

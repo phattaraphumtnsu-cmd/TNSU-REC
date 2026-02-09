@@ -20,8 +20,8 @@ export enum ProposalStatus {
   IN_REVIEW = 'อยู่ระหว่างพิจารณา',
   REVISION_REQ = 'แก้ไขตามข้อเสนอแนะ',
   PENDING_DECISION = 'รอสรุปผล',
-  WAITING_CERT = 'รอออกใบรับรอง',
-  APPROVED = 'อนุมัติ/ได้รับใบรับรอง',
+  WAITING_CERT = 'อนุมัติ (รอใบรับรอง)',
+  APPROVED = 'อนุมัติ (ได้รับใบรับรองแล้ว)',
   REJECTED = 'ไม่อนุมัติ',
   SUSPENDED = 'ระงับชั่วคราว'
 }

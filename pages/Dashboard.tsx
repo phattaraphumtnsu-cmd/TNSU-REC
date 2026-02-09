@@ -77,8 +77,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   const getStatusColor = (status: ProposalStatus) => {
     switch (status) {
-      case ProposalStatus.APPROVED:
-      case ProposalStatus.WAITING_CERT: return 'bg-green-100 text-green-700 border-green-200';
+      case ProposalStatus.APPROVED: return 'bg-green-100 text-green-700 border-green-200';
+      case ProposalStatus.WAITING_CERT: return 'bg-teal-100 text-teal-800 border-teal-200'; // Distinct color for waiting cert
       case ProposalStatus.REJECTED: return 'bg-red-100 text-red-700 border-red-200';
       case ProposalStatus.REVISION_REQ:
       case ProposalStatus.ADMIN_REJECTED: return 'bg-orange-100 text-orange-700 border-orange-200';
