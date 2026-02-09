@@ -55,7 +55,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
             setProposal(p);
             
             // If user is Admin, fetch reviewers list for assignment
-            if (user?.role === Role.ADMIN) {
+            if (user?.roles.includes(Role.ADMIN)) {
                 const rList = await db.getUsersByRole(Role.REVIEWER);
                 setReviewersList(rList);
             }
@@ -66,7 +66,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
         }
     };
     fetchData();
-  }, [id, user?.role]);
+  }, [id, user?.roles]);
 
   if (!user) return <div>Access Denied</div>;
   if (loading) return <div className="flex h-64 items-center justify-center text-blue-600"><Loader2 className="animate-spin mr-2"/> Loading Proposal...</div>;
@@ -277,7 +277,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
         <div className="lg:col-span-2 space-y-6">
           
           {/* Action Required Banner for Researcher */}
-          {hasPermission(user.role, Permission.SUBMIT_REVISION) && (isRejectedByAdmin || isRevisionReq) && (
+          {hasPermission(user.roles, Permission.SUBMIT_REVISION) && (isRejectedByAdmin || isRevisionReq) && (
              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
                 <AlertCircle className="text-red-600 mt-1" size={24} />
                 <div>
@@ -313,7 +313,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
              </div>
 
              {/* Admin/Reviewer view of Pending Revisions */}
-             {(hasPermission(user.role, Permission.ASSIGN_REVIEWERS) || hasPermission(user.role, Permission.VOTE_AS_REVIEWER)) && 
+             {(hasPermission(user.roles, Permission.ASSIGN_REVIEWERS) || hasPermission(user.roles, Permission.VOTE_AS_REVIEWER)) && 
                proposal.revisionLink && proposal.status === ProposalStatus.PENDING_ADMIN_CHECK && (
                 <div className="mt-6 bg-orange-50 border border-orange-200 p-4 rounded-lg animate-pulse">
                    <h4 className="font-bold text-orange-800 flex items-center gap-2 mb-2">
@@ -364,7 +364,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
           </div>
 
           {/* New: Review Progress for Admin */}
-          {user.role === Role.ADMIN && proposal.reviewers && proposal.reviewers.length > 0 && (
+          {user.roles.includes(Role.ADMIN) && proposal.reviewers && proposal.reviewers.length > 0 && (
              <div className="bg-white rounded-xl shadow-sm border border-blue-200 overflow-hidden mb-6">
                <div className="bg-blue-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
                   <h3 className="font-bold text-blue-800 flex items-center gap-2">
@@ -423,7 +423,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
           )}
 
           {/* Feedback & Revision Submission Section - IMPROVED UI */}
-          {(hasPermission(user.role, Permission.FINALIZE_DECISION) || hasPermission(user.role, Permission.SUBMIT_REVISION)) && (feedbackToShow || feedbackFileToShow) && (
+          {(hasPermission(user.roles, Permission.FINALIZE_DECISION) || hasPermission(user.roles, Permission.SUBMIT_REVISION)) && (feedbackToShow || feedbackFileToShow) && (
             <div className={`bg-white border rounded-xl shadow-md overflow-hidden transition-all duration-300 ${isRejectedByAdmin ? 'border-red-200 ring-4 ring-red-50/50' : 'border-orange-200 ring-4 ring-orange-50/50'} mb-6`}>
                <div 
                   className={`flex justify-between items-center p-4 cursor-pointer ${isRejectedByAdmin ? 'bg-red-50 hover:bg-red-100' : 'bg-orange-50 hover:bg-orange-100'} transition-colors`}
@@ -472,7 +472,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                       )}
 
                       {/* Revision Submission Form for Researcher */}
-                      {hasPermission(user.role, Permission.SUBMIT_REVISION) && (isRevisionReq || isRejectedByAdmin) && (
+                      {hasPermission(user.roles, Permission.SUBMIT_REVISION) && (isRevisionReq || isRejectedByAdmin) && (
                          <div className="mt-8 pt-8 border-t border-slate-100">
                             <h4 className="font-bold text-xl text-slate-800 mb-4 flex items-center gap-2">
                                <Send size={24} className="text-blue-600" /> ส่งแบบขอแก้ไข (Submit Revision)
@@ -550,7 +550,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
             </div>
           )}
 
-          {hasPermission(user.role, Permission.FINALIZE_DECISION) && proposal.reviews && proposal.reviews.length > 0 && (
+          {hasPermission(user.roles, Permission.FINALIZE_DECISION) && proposal.reviews && proposal.reviews.length > 0 && (
              <div className="bg-slate-100 rounded-xl p-6 border border-slate-200">
                 <h3 className="font-semibold text-slate-800 mb-4">ความคิดเห็นกรรมการ ({proposal.reviews.length}/{proposal.reviewers.length})</h3>
                 <div className="space-y-4">
@@ -586,7 +586,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                    <h3 className="font-bold text-green-800 flex items-center gap-2">
                       <Clock size={20} /> ติดตามความก้าวหน้าโครงการ
                    </h3>
-                   {hasPermission(user.role, Permission.ACKNOWLEDGE_PROGRESS_REPORT) && (
+                   {hasPermission(user.roles, Permission.ACKNOWLEDGE_PROGRESS_REPORT) && (
                       <div className="text-xs text-green-700 bg-white px-3 py-1 rounded-full border border-green-200">
                          ครบกำหนดรายงานถัดไป: {proposal.nextReportDueDate || 'ไม่ระบุ'}
                       </div>
@@ -613,7 +613,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                                         <div className="text-xs text-slate-400">{report.acknowledgedDate}</div>
                                      </div>
                                   ) : (
-                                     hasPermission(user.role, Permission.ACKNOWLEDGE_PROGRESS_REPORT) ? (
+                                     hasPermission(user.roles, Permission.ACKNOWLEDGE_PROGRESS_REPORT) ? (
                                         <button onClick={() => handleAdminAcknowledgeReport(report.id)} className="bg-blue-600 text-white text-xs px-3 py-2 rounded hover:bg-blue-700 transition-colors">กดรับทราบรายงาน</button>
                                      ) : (
                                         <span className="text-orange-500 text-xs bg-orange-50 px-2 py-1 rounded">รอเจ้าหน้าที่ตรวจสอบ</span>
@@ -626,7 +626,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                    ) : (
                       <div className="text-center text-slate-400 py-8 border-2 border-dashed border-slate-100 rounded-lg mb-6">ยังไม่มีรายงานความก้าวหน้า</div>
                    )}
-                   {hasPermission(user.role, Permission.SUBMIT_PROGRESS_REPORT) && (
+                   {hasPermission(user.roles, Permission.SUBMIT_PROGRESS_REPORT) && (
                       <div className="bg-slate-50 p-5 rounded-lg border border-slate-200">
                          <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2"><Send size={16} /> ส่งรายงานใหม่</h4>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
@@ -653,13 +653,13 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
 
         {/* Right: Actions */}
         <div className="space-y-6">
-          {hasPermission(user.role, Permission.APPROVE_AS_ADVISOR) && proposal.status === ProposalStatus.PENDING_ADVISOR && (
+          {hasPermission(user.roles, Permission.APPROVE_AS_ADVISOR) && proposal.status === ProposalStatus.PENDING_ADVISOR && (
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
               <h3 className="font-bold mb-4">การดำเนินการ (ที่ปรึกษา)</h3>
               <button onClick={handleAdvisorApprove} className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">อนุมัติให้นักศึกษา</button>
             </div>
           )}
-          {hasPermission(user.role, Permission.ASSIGN_REVIEWERS) && proposal.status === ProposalStatus.PENDING_ADMIN_CHECK && (
+          {hasPermission(user.roles, Permission.ASSIGN_REVIEWERS) && proposal.status === ProposalStatus.PENDING_ADMIN_CHECK && (
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                <h3 className="font-bold mb-4">มอบหมายกรรมการ / ตรวจสอบ</h3>
                <p className="text-xs text-slate-500 mb-2">ประเภท: <span className="font-semibold">{proposal.type}</span></p>
@@ -684,7 +684,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                </div>
             </div>
           )}
-          {hasPermission(user.role, Permission.VOTE_AS_REVIEWER) && proposal.status === ProposalStatus.IN_REVIEW && proposal.reviewers.includes(user.id) && !proposal.reviews?.find(r => r.reviewerId === user.id) && (
+          {hasPermission(user.roles, Permission.VOTE_AS_REVIEWER) && proposal.status === ProposalStatus.IN_REVIEW && proposal.reviewers.includes(user.id) && !proposal.reviews?.find(r => r.reviewerId === user.id) && (
              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <h3 className="font-bold mb-4">ผลการพิจารณา</h3>
                 <div className="space-y-3 mb-4">
@@ -698,7 +698,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                 <button onClick={handleReviewerSubmit} className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">ยืนยันผลการพิจารณา</button>
              </div>
           )}
-          {hasPermission(user.role, Permission.FINALIZE_DECISION) && proposal.status === ProposalStatus.PENDING_DECISION && (
+          {hasPermission(user.roles, Permission.FINALIZE_DECISION) && proposal.status === ProposalStatus.PENDING_DECISION && (
              <div className="bg-white p-6 rounded-xl shadow-sm border border-purple-200 ring-2 ring-purple-50">
                 <h3 className="font-bold mb-2 text-purple-700"><PenTool size={18} className="inline mr-1"/> สรุปผลการพิจารณา</h3>
                 <div className="space-y-3 mb-4">
@@ -713,7 +713,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                 <button onClick={handleAdminFinalize} className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 font-medium">บันทึกและแจ้งผล</button>
              </div>
           )}
-          {hasPermission(user.role, Permission.ISSUE_CERTIFICATE) && proposal.status === ProposalStatus.WAITING_CERT && (
+          {hasPermission(user.roles, Permission.ISSUE_CERTIFICATE) && proposal.status === ProposalStatus.WAITING_CERT && (
              <div className="bg-white p-6 rounded-xl shadow-sm border border-teal-200 ring-2 ring-teal-50">
                 <h3 className="font-bold mb-2 text-teal-800 flex items-center gap-2"><ShieldCheck size={20} /> ออกใบรับรอง</h3>
                 

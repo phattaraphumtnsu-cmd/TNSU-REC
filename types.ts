@@ -70,7 +70,7 @@ export interface AuditLog {
   action: string; // e.g., 'CREATE_PROPOSAL', 'APPROVE'
   actorId: string;
   actorName: string;
-  actorRole: string;
+  actorRole: string; // Stored as string to avoid complexity in logs
   targetId: string; // Proposal ID or User ID
   details: string;
   timestamp: string;
@@ -79,10 +79,10 @@ export interface AuditLog {
 export interface SurveyResponse {
   userId: string;
   userName: string;
-  role: Role;
-  scores: Record<string, number>; // key "0" to "7" (index of questions)
-  suggestion: string; // General suggestion
-  urgentSuggestion: string; // Urgent improvement needed
+  role: Role; // Primary role at time of submission
+  scores: Record<string, number>;
+  suggestion: string;
+  urgentSuggestion: string;
   submittedAt: string;
   updatedAt?: string;
 }
@@ -91,7 +91,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  role: Role; // Deprecated: Kept for backward compatibility, use 'roles' instead
+  roles: Role[]; // New: Support multiple roles
   type?: UserType;
   campus?: string; // Campus or School
   faculty?: string;
@@ -100,11 +101,11 @@ export interface User {
 
 export interface Review {
   reviewerId: string;
-  reviewerName: string; // Only shown to Admin
+  reviewerName: string;
   vote: Vote;
   comment: string;
   fileLink?: string;
-  reviewProcessLink?: string; // Link to review process details
+  reviewProcessLink?: string; 
   submittedAt: string;
 }
 
@@ -113,7 +114,7 @@ export interface RevisionLog {
   submittedDate: string;
   fileLink: string;
   noteLink?: string;
-  adminFeedbackSnapshot?: string; // The feedback they were responding to
+  adminFeedbackSnapshot?: string; 
 }
 
 export interface ApprovalDetail {
@@ -125,7 +126,7 @@ export interface ApprovalDetail {
 export interface Proposal {
   id: string;
   code?: string; // TNSU-SCI XXX/YYYY
-  certNumber?: string; // Legacy field, kept for compatibility
+  certNumber?: string; // Legacy field
   titleTh: string;
   titleEn: string;
   researcherId: string;
@@ -142,19 +143,19 @@ export interface Proposal {
   updatedDate: string;
   
   // Workflow data
-  adminFeedback?: string; // Feedback from admin during initial check
-  reviewers: string[]; // IDs of assigned reviewers
-  reviews: Review[]; // Review contents
-  consolidatedFeedback?: string; // Final feedback sent to researcher
-  consolidatedFileLink?: string; // Link to the consolidated review file (attached by admin)
+  adminFeedback?: string; 
+  reviewers: string[]; 
+  reviews: Review[]; 
+  consolidatedFeedback?: string; 
+  consolidatedFileLink?: string; 
   revisionCount: number;
-  revisionLink?: string; // Link to fixed files
-  revisionNoteLink?: string; // Optional link for clarification/memo
-  revisionHistory: RevisionLog[]; // Log of all revisions
+  revisionLink?: string; 
+  revisionNoteLink?: string; 
+  revisionHistory: RevisionLog[]; 
   
   // Post Approval
-  approvalDate?: string; // Legacy field
-  approvalDetail?: ApprovalDetail; // New detailed approval info
+  approvalDate?: string; 
+  approvalDetail?: ApprovalDetail; 
   certLink?: string;
   progressReports: ProgressReport[];
   nextReportDueDate?: string;
@@ -230,7 +231,11 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ]
 };
 
-export const hasPermission = (userRole: Role, permission: Permission): boolean => {
-  const permissions = ROLE_PERMISSIONS[userRole];
-  return permissions ? permissions.includes(permission) : false;
+// Modified: Check if ANY of the user's roles has the permission
+export const hasPermission = (userRoles: Role[], permission: Permission): boolean => {
+  if (!userRoles || userRoles.length === 0) return false;
+  return userRoles.some(role => {
+    const permissions = ROLE_PERMISSIONS[role];
+    return permissions ? permissions.includes(permission) : false;
+  });
 };

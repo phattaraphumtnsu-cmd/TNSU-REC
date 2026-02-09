@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database'; // Real DB
-import { ProposalStatus, Role, Proposal } from '../types';
-import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2, Calendar, CheckCircle } from 'lucide-react';
+import { ProposalStatus, Role, Proposal, FACULTIES } from '../types';
+import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2, Calendar, CheckCircle, User, Shield, Gavel, FileText } from 'lucide-react';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -19,6 +19,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [filterFaculty, setFilterFaculty] = useState<string>('ALL');
   const [filterDate, setFilterDate] = useState('');
 
   useEffect(() => {
@@ -26,18 +27,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       if (user) {
         setLoading(true);
         try {
-          let data = await db.getProposals(user.role, user.id);
+          // Pass all roles to get inclusive list of proposals
+          let data = await db.getProposals(user.roles, user.id);
           
-          if (user.role === Role.RESEARCHER) {
-             data = data.filter(p => p.researcherId === user.id);
-          }
-
           // Sort by updated date desc
           data.sort((a,b) => new Date(b.updatedDate).getTime() - new Date(a.updatedDate).getTime());
           setProposals(data);
 
           // Admin: Run background check for expiry
-          if (user.role === Role.ADMIN) {
+          if (user.roles.includes(Role.ADMIN)) {
              await db.checkExpiringCertificates();
              
              // Local check for UI display
@@ -87,6 +85,29 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     }
   };
 
+  // Helper to determine the user's relationship to the proposal
+  const getRelationBadge = (p: Proposal) => {
+      const relations = [];
+      if (p.researcherId === user.id) relations.push({ label: 'เจ้าของ', icon: User, color: 'bg-blue-50 text-blue-700 border-blue-100' });
+      if (p.advisorId === user.id) relations.push({ label: 'ที่ปรึกษา', icon: Shield, color: 'bg-orange-50 text-orange-700 border-orange-100' });
+      if (p.reviewers.includes(user.id)) relations.push({ label: 'กรรมการ', icon: Gavel, color: 'bg-purple-50 text-purple-700 border-purple-100' });
+      
+      // If user sees this ONLY because they are Admin (and not involved otherwise)
+      if (relations.length === 0 && user.roles.includes(Role.ADMIN)) {
+          return null; // Or show specific "Admin View" badge if needed
+      }
+
+      return (
+          <div className="flex flex-col gap-1 items-start">
+              {relations.map((r, i) => (
+                  <span key={i} className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border font-medium ${r.color}`}>
+                      <r.icon size={10} /> {r.label}
+                  </span>
+              ))}
+          </div>
+      );
+  };
+
   // Filter Logic
   const filteredProposals = proposals.filter(p => {
     const searchLower = searchTerm.toLowerCase();
@@ -98,13 +119,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
     const matchStatus = filterStatus === 'ALL' || p.status === filterStatus;
     const matchDate = !filterDate || p.submissionDate === filterDate;
+    const matchFaculty = filterFaculty === 'ALL' || p.faculty === filterFaculty;
 
-    return matchSearch && matchStatus && matchDate;
+    return matchSearch && matchStatus && matchDate && matchFaculty;
   });
 
   const clearFilters = () => {
     setSearchTerm('');
     setFilterStatus('ALL');
+    setFilterFaculty('ALL');
     setFilterDate('');
   };
 
@@ -120,122 +143,28 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     </div>
   );
 
-  // --- DEDICATED RESEARCHER VIEW ---
-  if (user.role === Role.RESEARCHER) {
-    return (
-      <div className="space-y-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">โครงการวิจัยของฉัน (My Proposals)</h2>
-            <p className="text-slate-500">ติดตามสถานะและจัดการโครงการวิจัยของคุณ</p>
-          </div>
-          <button 
-            onClick={() => onNavigate('submit')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
-          >
-            <Plus size={18} />
-            ยื่นคำขอใหม่
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <StatCard label="รอพิจารณา" count={stats.pending} color="border-yellow-200 text-yellow-600" icon={Clock} />
-          <StatCard label="ต้องแก้ไข" count={stats.revision} color="border-orange-200 text-orange-600" icon={AlertTriangle} />
-          <StatCard label="อนุมัติแล้ว" count={stats.approved} color="border-green-200 text-green-600" icon={FileCheck} />
-          <StatCard label="ไม่อนุมัติ" count={stats.rejected} color="border-red-200 text-red-600" icon={XCircle} />
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
-            <h3 className="font-semibold text-slate-700 flex items-center gap-2">
-              <FileCheck size={18} className="text-blue-500"/> รายการที่ยื่นขอ (Submitted Proposals)
-            </h3>
-            <div className="relative w-full md:w-64">
-                <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="ค้นหาชื่อโครงการ..." 
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 text-slate-500 text-sm font-medium uppercase tracking-wider">
-                <tr>
-                  <th className="px-6 py-4 text-left">รหัส / ชื่อโครงการ</th>
-                  <th className="px-6 py-4 text-left">วันที่ยื่น</th>
-                  <th className="px-6 py-4 text-left">อัพเดทล่าสุด</th>
-                  <th className="px-6 py-4 text-center">สถานะ</th>
-                  <th className="px-6 py-4 text-right">ดำเนินการ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredProposals.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 flex flex-col items-center justify-center">
-                      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                         <FilePlus size={32} className="text-slate-300" />
-                      </div>
-                      <p>ไม่พบข้อมูลโครงการ</p>
-                      {proposals.length === 0 && <button onClick={() => onNavigate('submit')} className="text-blue-600 hover:underline mt-2 text-sm">เริ่มยื่นคำขอใหม่</button>}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredProposals.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/80 transition-colors group">
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-mono text-blue-600 mb-1 bg-blue-50 w-fit px-1.5 py-0.5 rounded">{p.code || 'รอรหัส (Pending)'}</span>
-                          <span className="font-medium text-slate-800 line-clamp-1 group-hover:text-blue-700 transition-colors">{p.titleTh}</span>
-                          <span className="text-xs text-slate-500 line-clamp-1">{p.titleEn}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
-                        {p.submissionDate}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
-                        {p.updatedDate}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(p.status)} shadow-sm`}>
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button 
-                          onClick={() => onNavigate('proposal', { id: p.id })}
-                          className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all"
-                          title="ดูรายละเอียด / แก้ไข"
-                        >
-                           <Eye size={20} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- GENERAL VIEW (ADMIN / REVIEWER / ADVISOR) ---
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">แดชบอร์ด ({user.role})</h2>
+          <h2 className="text-2xl font-bold text-slate-800">แดชบอร์ด ({user.roles.join(', ')})</h2>
           <p className="text-slate-500">ภาพรวมการดำเนินงานจริยธรรมการวิจัย</p>
         </div>
+        
+        {/* Only show Submit button if user has RESEARCHER role */}
+        {user.roles.includes(Role.RESEARCHER) && (
+            <button 
+                onClick={() => onNavigate('submit')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+            >
+                <Plus size={18} />
+                ยื่นคำขอใหม่
+            </button>
+        )}
       </div>
 
       {/* Expiry Warning for Admin */}
-      {user.role === Role.ADMIN && expiringProposals.length > 0 && (
+      {user.roles.includes(Role.ADMIN) && expiringProposals.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 animate-pulse">
              <h3 className="text-red-800 font-bold flex items-center gap-2 mb-2">
                 <AlertTriangle size={20} /> แจ้งเตือน: มี {expiringProposals.length} โครงการที่ใบรับรองใกล้หมดอายุ (ภายใน 60 วัน)
@@ -281,6 +210,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 />
              </div>
 
+             {/* Faculty Filter */}
+             <select 
+               className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white md:max-w-[180px]"
+               value={filterFaculty}
+               onChange={e => setFilterFaculty(e.target.value)}
+             >
+                <option value="ALL">ทุกคณะ</option>
+                {FACULTIES.map(f => <option key={f} value={f}>{f}</option>)}
+             </select>
+
              {/* Status Filter */}
              <select 
                className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
@@ -302,7 +241,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
              </div>
 
              {/* Clear Filter */}
-             {(searchTerm || filterStatus !== 'ALL' || filterDate) && (
+             {(searchTerm || filterStatus !== 'ALL' || filterDate || filterFaculty !== 'ALL') && (
                <button 
                  onClick={clearFilters}
                  className="flex items-center justify-center gap-1 text-slate-500 hover:text-red-500 px-3 py-2 text-sm transition-colors border border-dashed border-slate-300 rounded-lg hover:bg-red-50 hover:border-red-200"
@@ -318,6 +257,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <thead className="bg-slate-50 text-slate-500 text-sm font-medium uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4 text-left">รหัส/ชื่อโครงการ</th>
+                <th className="px-6 py-4 text-left">บทบาทของท่าน</th>
                 <th className="px-6 py-4 text-left">วันที่ยื่น</th>
                 <th className="px-6 py-4 text-left">ผู้วิจัย</th>
                 <th className="px-6 py-4 text-center">สถานะ</th>
@@ -327,7 +267,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <tbody className="divide-y divide-slate-100">
               {filteredProposals.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center">
                        <Filter size={32} className="text-slate-300 mb-2" />
                        <p>ไม่พบข้อมูลตามเงื่อนไขที่ระบุ</p>
@@ -336,8 +276,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </tr>
               ) : (
                 filteredProposals.map((p) => {
-                  const isReviewer = user.role === Role.REVIEWER;
-                  const myReview = isReviewer ? p.reviews?.find(r => r.reviewerId === user.id) : null;
+                  const isReviewer = user.roles.includes(Role.REVIEWER);
+                  const isMyReview = isReviewer && p.reviewers.includes(user.id);
+                  const myReview = isMyReview ? p.reviews?.find(r => r.reviewerId === user.id) : null;
                   
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
@@ -347,6 +288,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                           <span className="font-medium text-slate-800 line-clamp-1">{p.titleTh}</span>
                           <span className="text-xs text-slate-500 line-clamp-1">{p.titleEn}</span>
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                         {getRelationBadge(p)}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
                         {p.submissionDate}
@@ -362,7 +306,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                           </span>
                           
                           {/* Reviewer Specific Status Indicator */}
-                          {isReviewer && (
+                          {isMyReview && (
                              myReview ? (
                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 border border-green-200">
                                  <CheckCircle size={10} /> ประเมินแล้ว ({myReview.vote})
@@ -381,9 +325,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                         <button 
                           onClick={() => onNavigate('proposal', { id: p.id })}
                           className="text-slate-400 hover:text-blue-600 transition-colors p-2"
-                          title={user.role === Role.ADMIN || (user.role === Role.REVIEWER && p.status === ProposalStatus.IN_REVIEW) ? "ตรวจ/แก้ไข" : "ดูรายละเอียด"}
+                          title="ดูรายละเอียด"
                         >
-                           {user.role === Role.ADMIN || (user.role === Role.REVIEWER && p.status === ProposalStatus.IN_REVIEW) ? <Edit2 size={18} /> : <Eye size={18} />}
+                           {user.roles.includes(Role.ADMIN) || (isMyReview && p.status === ProposalStatus.IN_REVIEW) ? <Edit2 size={18} /> : <Eye size={18} />}
                         </button>
                       </td>
                     </tr>

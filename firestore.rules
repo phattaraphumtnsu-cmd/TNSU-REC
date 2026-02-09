@@ -7,14 +7,23 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Direct helper to safely get user data, but MUST only call if exists
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function isUserExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Refactored hasRole to be crash-safe: Check existence BEFORE accessing data
     function hasRole(role) {
       return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             getUserData().role == role;
+             isUserExists() &&
+             (
+               ('roles' in getUserData() && role in getUserData().roles) || 
+               ('role' in getUserData() && getUserData().role == role)
+             );
     }
 
     function isAdmin() {
@@ -26,21 +35,22 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow read if signed in (open for finding advisors)
+      // Allow read if signed in (Required for listing users in dropdowns)
       allow read: if isSignedIn();
       
       // Allow creation if Admin OR if self-registration
       allow create: if isSignedIn() && (
         isAdmin() || 
         (request.auth.uid == userId && (
-          request.resource.data.role != 'ADMIN' || 
-          request.resource.data.email == 'admin@tnsu.ac.th'
+          !('roles' in request.resource.data) || 
+          (!request.resource.data.roles.hasAny(['ADMIN']))
         ))
       );
 
+      // Allow update self (excluding roles) or Admin
       allow update: if isSignedIn() && (
         isAdmin() || 
-        (request.auth.uid == userId && notUpdating('role'))
+        (request.auth.uid == userId && notUpdating('roles') && notUpdating('role'))
       );
       
       allow delete: if isAdmin();
@@ -94,6 +104,11 @@ service cloud.firestore {
 
     match /mail/{mailId} {
         allow create: if isSignedIn();
+    }
+    
+    match /surveys/{userId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isAdmin();
     }
     
     match /counters/{counterId} {

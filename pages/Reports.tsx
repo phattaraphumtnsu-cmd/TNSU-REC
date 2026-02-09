@@ -16,11 +16,11 @@ const Reports: React.FC = () => {
     const fetchData = async () => {
        setLoading(true);
        try {
-           const data = await db.getProposals(Role.ADMIN, 'admin_placeholder'); 
+           const data = await db.getProposals([Role.ADMIN], 'admin_placeholder'); 
            setProposals(data);
 
            // Fetch Audit Logs and Surveys if admin
-           if (currentUser?.role === Role.ADMIN) {
+           if (currentUser?.roles.includes(Role.ADMIN)) {
               const logs = await db.getAuditLogs();
               setAuditLogs(logs);
 
@@ -135,7 +135,7 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
-      {currentUser?.role === Role.ADMIN && (
+      {currentUser?.roles.includes(Role.ADMIN) && (
          <>
          {/* Survey Reports Section */}
          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">

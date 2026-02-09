@@ -86,15 +86,15 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
         <nav className="flex-1 py-4 space-y-1">
           <NavItem page="dashboard" icon={Home} label="แดชบอร์ด" />
           
-          {hasPermission(user.role, Permission.SUBMIT_PROPOSAL) && (
+          {hasPermission(user.roles, Permission.SUBMIT_PROPOSAL) && (
             <NavItem page="submit" icon={FilePlus} label="ยื่นคำขอใหม่" />
           )}
 
-          {hasPermission(user.role, Permission.MANAGE_USERS) && (
+          {hasPermission(user.roles, Permission.MANAGE_USERS) && (
             <NavItem page="users" icon={Users} label="จัดการผู้ใช้งาน" />
           )}
 
-          {hasPermission(user.role, Permission.VIEW_REPORTS) && (
+          {hasPermission(user.roles, Permission.VIEW_REPORTS) && (
             <NavItem page="reports" icon={BarChart} label="รายงานสถิติ" />
           )}
 
@@ -112,7 +112,11 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
              </div>
              <div className="ml-3 overflow-hidden">
                 <p className="text-sm font-medium text-white truncate">{user.name}</p>
-                <p className="text-xs text-slate-400 truncate capitalize">{user.role}</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                    {user.roles.map(r => (
+                        <span key={r} className="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 capitalize">{r}</span>
+                    ))}
+                </div>
              </div>
           </div>
           <button 

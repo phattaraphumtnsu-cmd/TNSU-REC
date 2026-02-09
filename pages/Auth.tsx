@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { db } from '../services/database';
 import { CAMPUSES, FACULTIES, Role, SCHOOLS, UserType, User } from '../types';
@@ -80,6 +79,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
         name: regName,
         email: regEmail,
         role: regRole,
+        roles: [regRole],
         type: regRole === Role.RESEARCHER ? regType : undefined,
         campus: regCampus,
         faculty: regRole === Role.RESEARCHER || regRole === Role.ADVISOR ? regFaculty : undefined,

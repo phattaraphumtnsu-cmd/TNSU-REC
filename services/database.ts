@@ -1,4 +1,5 @@
 
+
 import { 
   collection, 
   doc, 
@@ -37,21 +38,14 @@ class DatabaseService {
     const userCredential = await signInWithEmailAndPassword(auth, email, pass);
     const fbUser = userCredential.user;
     
-    const userDocRef = doc(dbFirestore, 'users', fbUser.uid);
-    const userDoc = await getDoc(userDocRef);
-
-    if (userDoc.exists()) {
-      const userData = userDoc.data() as User;
-      if ((userData as any).isDeleted) {
-         await signOut(auth);
-         throw new Error('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
-      }
-
-      this.currentUser = { ...userData, id: fbUser.uid };
-      await this.logActivity('LOGIN', fbUser.uid, 'User logged in');
-      return this.currentUser;
+    // Sync to get data and handle multi-role migration
+    const user = await this.syncCurrentUser(fbUser);
+    
+    if (user) {
+        await this.logActivity('LOGIN', fbUser.uid, 'User logged in');
+        return user;
     } else {
-      throw new Error('ไม่พบข้อมูลผู้ใช้งานในระบบฐานข้อมูล');
+        throw new Error('ไม่พบข้อมูลผู้ใช้งานในระบบฐานข้อมูล');
     }
   }
 
@@ -73,6 +67,16 @@ class DatabaseService {
       const userDoc = await getDoc(userDocRef);
       if (userDoc.exists()) {
         const userData = userDoc.data() as User;
+        
+        // Multi-role Migration: If 'roles' doesn't exist but 'role' does, create 'roles' array
+        if (!userData.roles && userData.role) {
+            userData.roles = [userData.role];
+            // Background update to fix DB
+            await updateDoc(userDocRef, { roles: userData.roles });
+        }
+        // Fallback safety
+        if (!userData.roles) userData.roles = [];
+
         if ((userData as any).isDeleted) {
             await signOut(auth);
             return null;
@@ -87,15 +91,11 @@ class DatabaseService {
   }
 
   async register(user: Omit<User, 'id'>, password: string): Promise<User> {
-    // If we are currently logged in (e.g. Admin creating a user), we must use a secondary app
-    // to avoid logging out the current user.
     const isSecondaryCreation = !!this.currentUser;
-    
     let targetAuth = auth;
     let secondaryApp: FirebaseApp | undefined = undefined;
 
     if (isSecondaryCreation) {
-        // Create a temporary secondary app to handle the new user creation without affecting current session
         secondaryApp = initializeApp(firebaseConfig, `SecondaryApp-${Date.now()}`);
         targetAuth = getAuth(secondaryApp);
     }
@@ -103,34 +103,40 @@ class DatabaseService {
     try {
         const userCredential = await createUserWithEmailAndPassword(targetAuth, user.email, password);
         const uid = userCredential.user.uid;
-        const newUser: User = { ...user, id: uid };
+        
+        // Ensure roles array is populated
+        const initialRoles = user.roles && user.roles.length > 0 ? user.roles : [user.role];
+        
+        const newUser: User = { ...user, id: uid, roles: initialRoles };
         const { password: _, ...userToSave } = newUser as any; 
         
-        // Save to Firestore (main instance)
+        // REMOVE UNDEFINED FIELDS
+        Object.keys(userToSave).forEach(key => {
+            if (userToSave[key] === undefined) {
+                delete userToSave[key];
+            }
+        });
+        
         await setDoc(doc(dbFirestore, 'users', uid), {
             ...userToSave,
             isDeleted: false,
             createdAt: new Date().toISOString()
         });
         
-        // Log registration
         const auditRef = collection(dbFirestore, 'audit_logs');
         await addDoc(auditRef, {
             action: 'REGISTER',
             actorId: isSecondaryCreation ? this.currentUser?.id : uid,
             actorName: isSecondaryCreation ? this.currentUser?.name : user.name,
-            actorRole: isSecondaryCreation ? this.currentUser?.role : user.role,
+            actorRole: isSecondaryCreation ? this.currentUser?.roles.join(',') : user.roles.join(','),
             targetId: uid,
-            details: `Registered new user: ${user.name} (${user.role})`,
+            details: `Registered new user: ${user.name} (${user.roles.join(', ')})`,
             timestamp: new Date().toISOString()
         });
         
-        // If this was self-registration, update current user. 
-        // If Admin created it, DO NOT update currentUser.
         if (!isSecondaryCreation) {
             this.currentUser = newUser;
         } else if (secondaryApp) {
-             // Sign out the secondary auth so it doesn't leave lingering sessions
              await signOut(targetAuth);
              await deleteApp(secondaryApp);
         }
@@ -159,11 +165,10 @@ class DatabaseService {
 
   async checkAnyAdminExists(): Promise<boolean> {
     try {
-      const q = query(collection(dbFirestore, 'users'), where('role', '==', Role.ADMIN), limit(1));
+      const q = query(collection(dbFirestore, 'users'), where('roles', 'array-contains', Role.ADMIN), limit(1));
       const snapshot = await getDocs(q);
       return !snapshot.empty;
     } catch (e) {
-      console.warn("Error checking admin existence (defaulting to false):", e);
       return false;
     }
   }
@@ -174,25 +179,44 @@ class DatabaseService {
     const q = query(collection(dbFirestore, 'users'));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs
-        .map(doc => ({ id: doc.id, ...(doc.data() as any) } as User))
+        .map(doc => {
+            const data = doc.data() as any;
+            // Handle migration read side
+            if (!data.roles && data.role) data.roles = [data.role];
+            return { id: doc.id, ...data } as User;
+        })
         .filter((u: any) => !u.isDeleted);
   }
 
   async getUsersByRole(role: Role): Promise<User[]> {
-    const q = query(collection(dbFirestore, 'users'), where('role', '==', role));
+    // Modified to use array-contains for roles
+    const q = query(collection(dbFirestore, 'users'), where('roles', 'array-contains', role));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs
-        .map(doc => ({ id: doc.id, ...(doc.data() as any) } as User))
+        .map(doc => {
+            const data = doc.data() as any;
+            if (!data.roles && data.role) data.roles = [data.role];
+            return { id: doc.id, ...data } as User;
+        })
         .filter((u: any) => !u.isDeleted);
   }
 
   async updateUser(id: string, updates: Partial<User>) {
     const userRef = doc(dbFirestore, 'users', id);
-    await updateDoc(userRef, updates);
+    
+    // Sanitize updates to remove undefined
+    const sanitizedUpdates = { ...updates };
+    Object.keys(sanitizedUpdates).forEach(key => {
+        if ((sanitizedUpdates as any)[key] === undefined) {
+            delete (sanitizedUpdates as any)[key];
+        }
+    });
+
+    await updateDoc(userRef, sanitizedUpdates);
     
     // Update local state if it's the current user
     if (this.currentUser && this.currentUser.id === id) {
-        this.currentUser = { ...this.currentUser, ...updates };
+        this.currentUser = { ...this.currentUser, ...sanitizedUpdates };
     }
     
     await this.logActivity('UPDATE_USER', id, `Updated fields: ${Object.keys(updates).join(', ')}`);
@@ -202,6 +226,7 @@ class DatabaseService {
     const userRef = doc(dbFirestore, 'users', id);
     await updateDoc(userRef, {
         isDeleted: true,
+        roles: [], // Clear roles essentially suspending functionality
         role: 'SUSPENDED',
         updatedAt: new Date().toISOString()
     });
@@ -210,24 +235,49 @@ class DatabaseService {
 
   // --- Proposals ---
 
-  async getProposals(role: Role, userId: string): Promise<Proposal[]> {
+  async getProposals(userRoles: Role[], userId: string): Promise<Proposal[]> {
     const proposalsRef = collection(dbFirestore, 'proposals');
-    let q;
+    let queries = [];
 
-    if (role === Role.ADMIN) {
-      q = query(proposalsRef);
-    } else if (role === Role.REVIEWER) {
-      q = query(proposalsRef, where('reviewers', 'array-contains', userId));
-    } else if (role === Role.ADVISOR) {
-      q = query(proposalsRef, where('advisorId', '==', userId));
-    } else if (role === Role.RESEARCHER) {
-      q = query(proposalsRef, where('researcherId', '==', userId));
-    } else {
-      return [];
+    // Multi-role logic: We can't do a single OR query easily in Firestore for complex rules.
+    // We will fetch based on the most permissive role or combine results.
+    
+    // 1. If Admin, fetch all.
+    if (userRoles.includes(Role.ADMIN)) {
+        const q = query(proposalsRef);
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Proposal));
     }
 
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Proposal));
+    // 2. Fetch based on other roles
+    const results = new Map<string, Proposal>();
+
+    // Helper to merge
+    const merge = (docs: any[]) => {
+        docs.forEach(doc => {
+            results.set(doc.id, { id: doc.id, ...(doc.data() as any) } as Proposal);
+        });
+    };
+
+    if (userRoles.includes(Role.RESEARCHER)) {
+        const q = query(proposalsRef, where('researcherId', '==', userId));
+        const snap = await getDocs(q);
+        merge(snap.docs);
+    }
+
+    if (userRoles.includes(Role.ADVISOR)) {
+        const q = query(proposalsRef, where('advisorId', '==', userId));
+        const snap = await getDocs(q);
+        merge(snap.docs);
+    }
+
+    if (userRoles.includes(Role.REVIEWER)) {
+        const q = query(proposalsRef, where('reviewers', 'array-contains', userId));
+        const snap = await getDocs(q);
+        merge(snap.docs);
+    }
+
+    return Array.from(results.values());
   }
 
   async getProposalById(id: string): Promise<Proposal | undefined> {
@@ -249,17 +299,14 @@ class DatabaseService {
 
   async createProposal(p: Partial<Proposal>): Promise<Proposal> {
     return await runTransaction(dbFirestore, async (transaction) => {
-        // Refined Logic: Date-based running number for uniqueness
-        // Format: TNSU-{FAC} {ThaiYear}{MM}{DD}-{SEQ}
         const now = new Date();
         const thYear = now.getFullYear() + 543;
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
-        const dateCode = `${thYear}${month}${day}`; // e.g., 25670226
+        const dateCode = `${thYear}${month}${day}`; 
 
         const facCode = this.getFacultyCode(p.faculty || '');
         
-        // Counter Document Reference: counters/prop_25670226_SCI
         const counterId = `prop_${dateCode}_${facCode}`;
         const counterRef = doc(dbFirestore, 'counters', counterId);
         const counterDoc = await transaction.get(counterRef);
@@ -269,7 +316,6 @@ class DatabaseService {
             newCount = counterDoc.data().count + 1;
         }
 
-        // Generate Code: TNSU-SCI 25670226-001
         const code = `TNSU-${facCode} ${dateCode}-${newCount.toString().padStart(3, '0')}`;
 
         const newProposalRef = doc(collection(dbFirestore, 'proposals'));
@@ -288,7 +334,6 @@ class DatabaseService {
             updatedDate: new Date().toISOString().split('T')[0],
         };
 
-        // Remove undefined fields (e.g. advisorName if undefined) to prevent Firestore errors
         Object.keys(newProposalData).forEach(key => {
             if (newProposalData[key] === undefined) {
                 delete newProposalData[key];
@@ -351,7 +396,6 @@ class DatabaseService {
             }
         }
 
-        // Sanitize updates
         Object.keys(finalUpdates).forEach(key => {
             if ((finalUpdates as any)[key] === undefined) {
                 delete (finalUpdates as any)[key];
@@ -363,11 +407,9 @@ class DatabaseService {
         await this.logActivity('UPDATE_PROPOSAL', id, `Updated fields: ${Object.keys(updates).join(', ')}`);
     });
     
-    // Notifications and Email (Simulated backend trigger)
     const currentP = await this.getProposalById(id);
     if (currentP && updates.status && updates.status !== currentP.status) {
          const msg = `สถานะโครงการเปลี่ยนเป็น: ${updates.status}`;
-         // Notify Researcher
          if (currentP.researcherId) {
              await this.sendNotification(currentP.researcherId, msg, `proposal?id=${id}`);
          }
@@ -449,7 +491,6 @@ class DatabaseService {
   async submitSurvey(response: Omit<SurveyResponse, 'submittedAt'>) {
     if (!this.currentUser) return;
     
-    // We use userId as document ID to ensure one survey per user (easy to update/check status)
     const surveyRef = doc(dbFirestore, 'surveys', this.currentUser.id);
     const surveyData: SurveyResponse = {
         ...response,
@@ -479,7 +520,6 @@ class DatabaseService {
   // --- Notifications & Emails ---
 
   async sendNotification(userId: string, message: string, link?: string) {
-    // 1. In-App Notification
     const notificationsRef = collection(dbFirestore, 'notifications');
     await addDoc(notificationsRef, {
       userId,
@@ -489,7 +529,6 @@ class DatabaseService {
       createdAt: new Date().toISOString()
     });
 
-    // 2. Email Notification (Triggered by Firestore write to 'mail' collection via Firebase Extension)
     try {
         const userRef = doc(dbFirestore, 'users', userId);
         const userSnap = await getDoc(userRef);
@@ -524,7 +563,6 @@ class DatabaseService {
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Notification));
     } catch (e) {
-        // Fallback if index missing
         const q2 = query(collection(dbFirestore, 'notifications'), where('userId', '==', userId));
         const qs = await getDocs(q2);
         return qs.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Notification)).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
@@ -548,7 +586,7 @@ class DatabaseService {
      }
   }
 
-  // --- Audit Logs & Background Checks ---
+  // --- Audit Logs ---
 
   async logActivity(action: string, targetId: string, details: string) {
       if (!this.currentUser) return;
@@ -557,7 +595,7 @@ class DatabaseService {
           action,
           actorId: this.currentUser.id,
           actorName: this.currentUser.name,
-          actorRole: this.currentUser.role,
+          actorRole: this.currentUser.roles.join(','),
           targetId,
           details,
           timestamp: new Date().toISOString()
@@ -578,14 +616,14 @@ class DatabaseService {
   }
 
   async checkExpiringCertificates() {
-      if (!this.currentUser || this.currentUser.role !== Role.ADMIN) return;
+      if (!this.currentUser || !this.currentUser.roles.includes(Role.ADMIN)) return;
 
       const proposalsRef = collection(dbFirestore, 'proposals');
       const q = query(proposalsRef, where('status', '==', ProposalStatus.APPROVED));
       const snapshot = await getDocs(q);
       
       const today = new Date();
-      const warningThreshold = 30; // days
+      const warningThreshold = 30; 
 
       snapshot.forEach(async (docSnap) => {
           const p = docSnap.data() as Proposal;
@@ -598,7 +636,7 @@ class DatabaseService {
 
           if (diffDays > 0 && diffDays <= warningThreshold) {
               if (p.researcherId) {
-                  // Alert logic here
+                  // Alert logic
               }
           }
       });
@@ -606,3 +644,4 @@ class DatabaseService {
 }
 
 export const db = new DatabaseService();
+

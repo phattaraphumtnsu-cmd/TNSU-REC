@@ -41,7 +41,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
     fetchAdvisors();
   }, []);
 
-  if (!user || user.role !== Role.RESEARCHER) return <div className="text-red-500 p-8">Access Denied: สำหรับนักวิจัยเท่านั้น</div>;
+  if (!user || !user.roles.includes(Role.RESEARCHER)) return <div className="text-red-500 p-8">Access Denied: สำหรับนักวิจัยเท่านั้น</div>;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

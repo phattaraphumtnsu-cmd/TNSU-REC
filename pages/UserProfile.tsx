@@ -106,7 +106,7 @@ const UserProfile: React.FC = () => {
               await db.submitSurvey({
                   userId: user.id,
                   userName: user.name,
-                  role: user.role,
+                  role: user.roles && user.roles.length > 0 ? user.roles[0] : user.role,
                   scores: scores,
                   suggestion: suggestion,
                   urgentSuggestion: urgentSuggestion

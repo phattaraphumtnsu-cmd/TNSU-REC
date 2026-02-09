@@ -19,7 +19,8 @@ const UserManagement: React.FC = () => {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    role: Role.REVIEWER,
+    role: Role.RESEARCHER, // Default primary
+    roles: [Role.RESEARCHER], // Array for multi-role
     campus: CAMPUSES[0],
     faculty: FACULTIES[0],
     password: ''
@@ -27,14 +28,6 @@ const UserManagement: React.FC = () => {
 
   // Edit User Modal State
   const [editingUser, setEditingUser] = useState<User | null>(null);
-
-  // Role Change Modal State
-  const [roleConfirm, setRoleConfirm] = useState<{
-    isOpen: boolean;
-    userId: string;
-    userName: string;
-    newRole: Role | null;
-  }>({ isOpen: false, userId: '', userName: '', newRole: null });
 
   const fetchUsers = async () => {
       setLoading(true);
@@ -49,12 +42,12 @@ const UserManagement: React.FC = () => {
   };
 
   useEffect(() => {
-    if (currentUser && hasPermission(currentUser.role, Permission.MANAGE_USERS)) {
+    if (currentUser && hasPermission(currentUser.roles, Permission.MANAGE_USERS)) {
         fetchUsers();
     }
   }, [currentUser]);
 
-  if (!currentUser || !hasPermission(currentUser.role, Permission.MANAGE_USERS)) {
+  if (!currentUser || !hasPermission(currentUser.roles, Permission.MANAGE_USERS)) {
       return (
           <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
               <Lock size={48} className="mb-4 text-slate-300" />
@@ -65,6 +58,10 @@ const UserManagement: React.FC = () => {
   }
 
   const handleDelete = async (id: string, name: string) => {
+    if (id === currentUser.id) {
+        alert("ไม่สามารถระงับการใช้งานบัญชีของตนเองได้");
+        return;
+    }
     if (window.confirm(`ยืนยันการระงับการใช้งานผู้ใช้ "${name}"?\n(ผู้ใช้จะไม่สามารถเข้าสู่ระบบได้ แต่ข้อมูลในระบบจะยังคงอยู่)`)) {
       await db.deleteUser(id);
       fetchUsers(); 
@@ -79,25 +76,50 @@ const UserManagement: React.FC = () => {
       }
   };
 
-  const handleRoleChangeRequest = (userId: string, userName: string, newRole: Role) => {
-      setRoleConfirm({
-          isOpen: true,
-          userId,
-          userName,
-          newRole
+  const toggleNewUserRole = (role: Role) => {
+      setNewUser(prev => {
+          const exists = prev.roles.includes(role);
+          // Prevent removing the last role
+          if (exists && prev.roles.length <= 1) {
+              return prev; 
+          }
+          
+          const updated = exists ? prev.roles.filter(r => r !== role) : [...prev.roles, role];
+          return { ...prev, roles: updated, role: updated[0] || Role.RESEARCHER };
       });
   };
 
-  const confirmRoleChange = async () => {
-    if (roleConfirm.userId && roleConfirm.newRole) {
-       await db.updateUser(roleConfirm.userId, { role: roleConfirm.newRole });
-       await fetchUsers();
-       setRoleConfirm({ isOpen: false, userId: '', userName: '', newRole: null });
-    }
+  const toggleEditUserRole = (role: Role) => {
+      if (!editingUser) return;
+      
+      // Safety Check: Prevent removing ADMIN role from self
+      if (editingUser.id === currentUser.id && role === Role.ADMIN && editingUser.roles.includes(Role.ADMIN)) {
+          alert("ไม่สามารถยกเลิกสิทธิ์ Admin ของบัญชีที่กำลังใช้งานอยู่ได้ เพื่อป้องกันการถูกล็อคออกจากระบบ");
+          return;
+      }
+
+      setEditingUser(prev => {
+          if (!prev) return null;
+          const exists = prev.roles.includes(role);
+          
+          // Safety Check: Must have at least one role
+          if (exists && prev.roles.length <= 1) {
+              alert("ผู้ใช้งานต้องมีอย่างน้อย 1 บทบาท");
+              return prev;
+          }
+
+          const updated = exists ? prev.roles.filter(r => r !== role) : [...prev.roles, role];
+          return { ...prev, roles: updated, role: updated[0] || Role.RESEARCHER };
+      });
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if(newUser.roles.length === 0) {
+        alert('กรุณาเลือกบทบาทอย่างน้อย 1 บทบาท');
+        return;
+    }
+
     try {
         const finalPassword = newUser.password || 'password123';
         
@@ -108,9 +130,8 @@ const UserManagement: React.FC = () => {
         alert(`เพิ่มผู้ใช้งาน ${newUser.name} เรียบร้อยแล้ว\nรหัสผ่านเริ่มต้น: ${finalPassword}`);
         fetchUsers();
         setIsAdding(false);
-        setNewUser({ ...newUser, name: '', email: '', password: '' });
+        setNewUser({ ...newUser, name: '', email: '', password: '', roles: [Role.RESEARCHER] });
     } catch(err: any) {
-        // ... (Error handling remains same as previous code)
         alert('เกิดข้อผิดพลาด: ' + err.message);
     }
   };
@@ -118,10 +139,13 @@ const UserManagement: React.FC = () => {
   const handleUpdateUser = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingUser) return;
+      if (editingUser.roles.length === 0) return alert('ต้องมีอย่างน้อย 1 บทบาท');
+
       try {
           await db.updateUser(editingUser.id, {
               name: editingUser.name,
-              role: editingUser.role,
+              roles: editingUser.roles,
+              role: editingUser.roles[0], // Primary role fallback
               campus: editingUser.campus,
               faculty: editingUser.faculty
           });
@@ -134,7 +158,7 @@ const UserManagement: React.FC = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchRole = filterRole === 'ALL' || user.role === filterRole;
+    const matchRole = filterRole === 'ALL' || user.roles.includes(filterRole as Role);
     const matchCampus = filterCampus === 'ALL' || user.campus === filterCampus;
     const matchSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -176,7 +200,19 @@ const UserManagement: React.FC = () => {
           <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div><label className="block text-sm font-medium text-slate-700 mb-1">ชื่อ-นามสกุล</label><input required type="text" className="w-full border p-2.5 rounded-lg" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} placeholder="เช่น ดร.สมชาย ใจดี" /></div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">อีเมล</label><input required type="email" className="w-full border p-2.5 rounded-lg" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="email@tnsu.ac.th" /></div>
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">บทบาท (Role)</label><select className="w-full border p-2.5 rounded-lg" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value as Role})}><option value={Role.REVIEWER}>Reviewer</option><option value={Role.ADVISOR}>Advisor</option><option value={Role.ADMIN}>Admin</option><option value={Role.RESEARCHER}>Researcher</option></select></div>
+            
+            <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">บทบาท (เลือกได้มากกว่า 1)</label>
+                <div className="flex gap-4 flex-wrap">
+                    {Object.values(Role).map(r => (
+                        <label key={r} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer select-none transition-colors ${newUser.roles.includes(r) ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200'}`}>
+                            <input type="checkbox" checked={newUser.roles.includes(r)} onChange={() => toggleNewUserRole(r)} className="rounded text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium">{r}</span>
+                        </label>
+                    ))}
+                </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div><label className="block text-sm font-medium text-slate-700 mb-1">วิทยาเขต</label><select className="w-full border p-2.5 rounded-lg text-sm" value={newUser.campus} onChange={e => setNewUser({...newUser, campus: e.target.value})}>{CAMPUSES.map(c => <option key={c} value={c}>{c}</option>)}{SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">คณะ</label><select className="w-full border p-2.5 rounded-lg text-sm" value={newUser.faculty} onChange={e => setNewUser({...newUser, faculty: e.target.value})}>{FACULTIES.map(f => <option key={f} value={f}>{f}</option>)}</select></div>
@@ -220,12 +256,28 @@ const UserManagement: React.FC = () => {
                          <label className="block text-sm font-medium text-slate-700 mb-1">ชื่อ-นามสกุล</label>
                          <input required type="text" className="w-full border p-2.5 rounded-lg" value={editingUser.name} onChange={e => setEditingUser({...editingUser, name: e.target.value})} />
                     </div>
-                    <div>
-                         <label className="block text-sm font-medium text-slate-700 mb-1">บทบาท</label>
-                         <select className="w-full border p-2.5 rounded-lg" value={editingUser.role} onChange={e => setEditingUser({...editingUser, role: e.target.value as Role})}>
-                             {Object.values(Role).map(r => <option key={r} value={r}>{r}</option>)}
-                         </select>
+                    
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">บทบาท (เลือกได้มากกว่า 1)</label>
+                        <div className="flex gap-4 flex-wrap">
+                            {Object.values(Role).map(r => {
+                                const isSelfAdmin = editingUser.id === currentUser.id && r === Role.ADMIN;
+                                return (
+                                <label key={r} className={`flex items-center gap-2 px-3 py-2 rounded-lg border select-none transition-colors ${editingUser.roles.includes(r) ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200'} ${isSelfAdmin ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={editingUser.roles.includes(r)} 
+                                        onChange={() => !isSelfAdmin && toggleEditUserRole(r)} 
+                                        disabled={isSelfAdmin}
+                                        className={`rounded text-blue-600 focus:ring-blue-500 ${isSelfAdmin ? 'cursor-not-allowed' : ''}`}
+                                    />
+                                    <span className="text-sm font-medium">{r}</span>
+                                    {isSelfAdmin && <Lock size={12} className="ml-1" />}
+                                </label>
+                            )})}
+                        </div>
                     </div>
+
                     <div>
                          <label className="block text-sm font-medium text-slate-700 mb-1">วิทยาเขต</label>
                          <select className="w-full border p-2.5 rounded-lg" value={editingUser.campus} onChange={e => setEditingUser({...editingUser, campus: e.target.value})}>
@@ -273,7 +325,13 @@ const UserManagement: React.FC = () => {
                 filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-6 py-4"><div className="flex items-center"><div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold mr-3 text-sm">{user.name.charAt(0)}</div><div><div className="font-medium text-slate-900">{user.name}</div><div className="text-sm text-slate-500 flex items-center gap-1"><Mail size={12} /> {user.email}</div></div></div></td>
-                    <td className="px-6 py-4"><span className={`inline-flex items-center px-2 py-1 rounded border text-xs font-bold uppercase ${getRoleBadge(user.role)}`}>{user.role}</span></td>
+                    <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                            {user.roles.map(r => (
+                                <span key={r} className={`inline-flex items-center px-2 py-1 rounded border text-xs font-bold uppercase ${getRoleBadge(r)}`}>{r}</span>
+                            ))}
+                        </div>
+                    </td>
                     <td className="px-6 py-4"><div className="text-sm text-slate-900">{user.campus}</div><div className="text-xs text-slate-500">{user.faculty}</div></td>
                     <td className="px-6 py-4 text-right">
                        <div className="flex justify-end gap-1">
@@ -283,7 +341,7 @@ const UserManagement: React.FC = () => {
                            <button onClick={() => handleResetPassword(user.email)} disabled={user.id === currentUser.id} className="p-2 text-slate-400 hover:text-orange-600 rounded-full hover:bg-orange-50 transition-colors" title="รีเซ็ตรหัสผ่าน (ส่งอีเมล)">
                              <RotateCcw size={18} />
                            </button>
-                           <button onClick={() => handleDelete(user.id, user.name)} disabled={user.id === currentUser.id} className="p-2 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors" title="ระงับการใช้งาน">
+                           <button onClick={() => handleDelete(user.id, user.name)} disabled={user.id === currentUser.id} className="p-2 text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="ระงับการใช้งาน">
                              <Ban size={18} />
                            </button>
                        </div>
