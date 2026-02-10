@@ -632,6 +632,23 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                   <ExternalLink size={16} /> ลิงก์เอกสารโครงการ (Google Drive ของผู้วิจัย)
                 </a>
                 
+                {/* FIX: Moved Revision Link Here (Permanent Visibility) */}
+                {proposal.revisionLink && (
+                    <div className="bg-orange-50 p-3 rounded-lg border border-orange-200 mt-1 animate-pulse">
+                        <p className="text-xs text-orange-800 font-bold mb-1 flex items-center gap-1">
+                            <AlertCircle size={12}/> เอกสารฉบับแก้ไข (Revised Files):
+                        </p>
+                        <a href={proposal.revisionLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-orange-700 hover:underline text-sm font-medium">
+                            <ExternalLink size={14} /> เปิดดูไฟล์แก้ไขล่าสุด (ครั้งที่ {proposal.revisionCount})
+                        </a>
+                        {proposal.revisionNoteLink && (
+                            <a href={proposal.revisionNoteLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-slate-600 hover:underline text-xs mt-1 ml-5">
+                                <FileText size={12} /> บันทึกข้อความชี้แจง
+                            </a>
+                        )}
+                    </div>
+                )}
+                
                 {/* Admin Consolidated Link (Displayed prominently if exists) */}
                 {proposal.consolidatedFileLink && (
                     <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
@@ -649,23 +666,11 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                 )}
              </div>
 
-             {/* Admin/Reviewer view of Pending Revisions */}
-             {(hasPermission(user.roles, Permission.ASSIGN_REVIEWERS) || hasPermission(user.roles, Permission.VOTE_AS_REVIEWER)) && 
-               proposal.revisionLink && proposal.status === ProposalStatus.PENDING_ADMIN_CHECK && (
-                <div className="mt-6 bg-orange-50 border border-orange-200 p-4 rounded-lg animate-pulse">
-                   <h4 className="font-bold text-orange-800 flex items-center gap-2 mb-2">
-                      <AlertCircle size={20} /> มีเอกสารฉบับแก้ไขใหม่ (Revision {proposal.revisionCount})
-                   </h4>
-                   <div className="flex flex-col gap-2">
-                       <a href={proposal.revisionLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-orange-700 hover:underline bg-white p-2 rounded border border-orange-100 text-sm">
-                         <ExternalLink size={14} /> ไฟล์แก้ไข (Revision Files)
-                       </a>
-                       {proposal.revisionNoteLink && (
-                         <a href={proposal.revisionNoteLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-slate-600 hover:underline bg-white p-2 rounded border border-slate-100 text-sm">
-                           <FileText size={14} /> บันทึกข้อความ/เอกสารชี้แจง
-                         </a>
-                       )}
-                   </div>
+             {/* Admin/Reviewer view of Pending Revisions (Removed as it is now duplicated above, but kept simple if status allows specific actions) */}
+             {(hasPermission(user.roles, Permission.ASSIGN_REVIEWERS)) && 
+               proposal.status === ProposalStatus.PENDING_ADMIN_CHECK && proposal.revisionLink && (
+                <div className="mt-4 text-xs text-slate-500 text-center">
+                   * ขณะนี้สถานะคือ "รอเจ้าหน้าที่ตรวจสอบ" ไฟล์แก้ไขด้านบนคือไฟล์ล่าสุดที่ส่งมา
                 </div>
              )}
 
@@ -1302,6 +1307,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                                 filteredReviewers.map(r => {
                                     const workload = reviewerWorkload[r.id] || 0;
                                     const isSelected = selectedReviewers.includes(r.id);
+                                    const isPreviouslyAssigned = proposal.reviewers?.includes(r.id);
                                     
                                     // Status color based on workload
                                     let statusColor = 'bg-green-100 text-green-700';
@@ -1318,7 +1324,14 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                                             }}
                                         >
                                             <td className="px-6 py-4">
-                                                <div className="font-medium text-slate-800">{r.name}</div>
+                                                <div className="font-medium text-slate-800 flex items-center gap-2">
+                                                    {r.name}
+                                                    {isPreviouslyAssigned && (
+                                                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200">
+                                                            กรรมการเดิม (Current)
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="text-xs text-slate-500">{r.faculty}</div>
                                             </td>
                                             <td className="px-6 py-4 text-center">
