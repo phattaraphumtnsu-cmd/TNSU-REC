@@ -42,11 +42,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
       const user = await db.login(email, password);
       onLogin(user);
     } catch (err: any) {
-      console.error("Login error object:", err);
       const errCode = err.code || '';
       const errMsg = err.message || '';
 
-      // Specific error mapping
+      // Handle expected auth errors without clogging console
       if (errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) {
          setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
       } else if (errCode === 'auth/user-not-found') {
@@ -61,7 +60,10 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
          setError('มีการพยายามเข้าสู่ระบบมากเกินไป กรุณารอสักครู่แล้วลองใหม่');
       } else if (errCode === 'auth/network-request-failed') {
          setError('เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย กรุณาตรวจสอบอินเทอร์เน็ต');
+      } else if (errMsg === 'ไม่พบข้อมูลผู้ใช้งานในระบบฐานข้อมูล') {
+         setError('บัญชีนี้ไม่มีข้อมูลในระบบ (User Profile Missing)');
       } else {
+         console.error("Login error object:", err); // Only log unexpected errors
          setError(errMsg || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
       }
     } finally {

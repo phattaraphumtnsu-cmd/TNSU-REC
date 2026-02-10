@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { db } from '../services/database';
-import { ArrowLeft, BookOpen, UserPlus, FileText, CheckCircle, Shield, AlertCircle, HelpCircle, HardDrive, GitBranch, PlayCircle, FileCheck, RefreshCw } from 'lucide-react';
+import { ArrowLeft, BookOpen, UserPlus, FileText, CheckCircle, Shield, AlertCircle, HelpCircle, HardDrive, GitBranch, PlayCircle, FileCheck, RefreshCw, Download } from 'lucide-react';
+import { generateWordManual } from '../services/manualGenerator';
 
 interface UserManualProps {
   onNavigate: (page: string) => void;
@@ -9,6 +10,7 @@ interface UserManualProps {
 
 const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('workflow');
+  const [generating, setGenerating] = useState(false);
   const user = db.currentUser;
 
   const tabs = [
@@ -19,6 +21,18 @@ const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
     { id: 'admin', label: 'คู่มือผู้ดูแลระบบ (Admin)', icon: Shield },
   ];
 
+  const handleDownload = async () => {
+      setGenerating(true);
+      try {
+          await generateWordManual();
+      } catch (error) {
+          console.error("Failed to generate manual", error);
+          alert("เกิดข้อผิดพลาดในการสร้างไฟล์");
+      } finally {
+          setGenerating(false);
+      }
+  };
+
   return (
     <div className="max-w-6xl mx-auto pb-12">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
@@ -28,11 +42,21 @@ const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
            </h2>
            <p className="text-slate-500 mt-1">รายละเอียดขั้นตอนการทำงานและการใช้งานระบบจริยธรรมการวิจัยในมนุษย์</p>
         </div>
-        {!user && (
-          <button onClick={() => onNavigate('auth')} className="flex items-center text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg transition-colors border border-blue-200 shadow-sm">
-            <ArrowLeft size={18} className="mr-2" /> กลับหน้าเข้าสู่ระบบ
-          </button>
-        )}
+        <div className="flex gap-2">
+            <button 
+                onClick={handleDownload}
+                disabled={generating}
+                className="flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+            >
+                <Download size={18} className="mr-2" />
+                {generating ? 'กำลังสร้างไฟล์...' : 'ดาวน์โหลดคู่มือ (.docx)'}
+            </button>
+            {!user && (
+            <button onClick={() => onNavigate('auth')} className="flex items-center text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg transition-colors border border-blue-200 shadow-sm">
+                <ArrowLeft size={18} className="mr-2" /> กลับหน้าเข้าสู่ระบบ
+            </button>
+            )}
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
