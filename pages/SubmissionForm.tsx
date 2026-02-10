@@ -13,7 +13,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
   const user = db.currentUser;
   const [loading, setLoading] = useState(false);
   const [advisors, setAdvisors] = useState<User[]>([]);
-  const [advisorSearch, setAdvisorSearch] = useState(''); // New: Search State
+  const [advisorSearch, setAdvisorSearch] = useState(''); 
   
   const [formData, setFormData] = useState({
     titleTh: '',
@@ -67,10 +67,14 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
     try {
         const advisor = advisors.find(a => a.id === formData.advisorId);
         
+        // Pass ALL fields to database
         await db.createProposal({
           titleTh: formData.titleTh,
           titleEn: formData.titleEn,
           type: formData.type,
+          objective: formData.objective,
+          sampleCount: formData.sampleCount,
+          duration: formData.duration,
           fileLink: formData.fileLink,
           // If student, payment slip is optional/skipped
           paymentSlipLink: isStudent ? undefined : formData.paymentSlipLink, 
@@ -177,7 +181,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
 
           <hr className="border-slate-100" />
 
-          {/* Section 2: Advisor Selection (Student Only) - IMPROVED CUSTOM LIST */}
+          {/* Section 2: Advisor Selection (Student Only) */}
           {isStudent && (
             <>
               <div>
@@ -195,7 +199,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                     
                     <label className="block text-sm font-medium text-slate-700 mb-1">ค้นหาและเลือกอาจารย์ที่ปรึกษา <span className="text-red-500">*</span></label>
                     
-                    {/* Selected State Display */}
                     {selectedAdvisor && (
                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center animate-in fade-in slide-in-from-top-2">
                           <div>
@@ -216,10 +219,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                        </div>
                     )}
 
-                    {/* Search & List */}
                     {!selectedAdvisor && (
                         <div className="border border-slate-300 rounded-lg overflow-hidden bg-white">
-                           {/* Search Input */}
                            <div className="relative border-b border-slate-100">
                               <Search className="absolute left-3 top-3 text-slate-400" size={18} />
                               <input 
@@ -231,7 +232,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                               />
                            </div>
                            
-                           {/* Scrollable List */}
                            <div className="max-h-60 overflow-y-auto bg-slate-50/30">
                               {filteredAdvisors.length > 0 ? (
                                  filteredAdvisors.map(a => (
@@ -244,7 +244,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                                           <div className="font-medium text-slate-800 text-sm group-hover:text-blue-700">{a.name}</div>
                                           <div className="text-xs text-slate-500">{a.faculty || 'ไม่ระบุคณะ'} • {a.email}</div>
                                        </div>
-                                       {/* Helper text on hover */}
                                        <span className="text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">เลือก</span>
                                     </div>
                                  ))
@@ -297,7 +296,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
 
           <hr className="border-slate-100" />
 
-          {/* Section 4: Payment Slip (Non-Student Only) OR Optional Docs */}
+          {/* Section 4: Payment Slip */}
           <div>
              <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">{isStudent ? 4 : 3}</span>
@@ -306,7 +305,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
              
              <div className="pl-2 md:pl-10">
                 {!isStudent ? (
-                    /* STAFF/EXTERNAL: Must upload payment slip */
                     <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
                         <div className="flex items-center gap-2 mb-2 text-slate-800 font-medium">
                              <Wallet size={18} className="text-slate-500"/> ค่าธรรมเนียมการพิจารณา: 1,500 บาท
@@ -332,7 +330,6 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                         </div>
                     </div>
                 ) : (
-                    /* STUDENT: Optional additional docs, No payment */
                     <div className="bg-green-50 p-4 rounded-lg border border-green-100 mb-4">
                          <div className="flex items-center gap-2 text-green-800 font-medium mb-1">
                             <CheckCircleIcon /> นักศึกษาได้รับสิทธิ์ยกเว้นค่าธรรมเนียม

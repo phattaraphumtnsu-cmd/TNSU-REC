@@ -7,7 +7,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Direct helper to safely get user data, but MUST only call if exists
+    // Direct helper to safely get user data
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
@@ -16,41 +16,33 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // Refactored hasRole to be crash-safe: Check existence BEFORE accessing data
-    function hasRole(role) {
+    // Robust role check supporting both 'roles' array (new) and 'role' string (legacy)
+    function isAdmin() {
       return isSignedIn() && 
              isUserExists() &&
              (
-               ('roles' in getUserData() && role in getUserData().roles) || 
-               ('role' in getUserData() && getUserData().role == role)
+               (getUserData().keys().hasAny(['roles']) && 'ADMIN' in getUserData().roles) || 
+               (getUserData().keys().hasAny(['role']) && getUserData().role == 'ADMIN')
              );
     }
 
-    function isAdmin() {
-      return hasRole('ADMIN');
-    }
-
-    function notUpdating(field) {
-      return !(field in request.resource.data) || request.resource.data[field] == resource.data[field];
-    }
-
     match /users/{userId} {
-      // Allow read if signed in (Required for listing users in dropdowns)
+      // Allow everyone to read users (needed for dropdowns)
       allow read: if isSignedIn();
       
-      // Allow creation if Admin OR if self-registration
+      // Allow create if Admin OR Self-Registration (preventing self-elevation to ADMIN)
       allow create: if isSignedIn() && (
         isAdmin() || 
         (request.auth.uid == userId && (
-          !('roles' in request.resource.data) || 
-          (!request.resource.data.roles.hasAny(['ADMIN']))
+          !request.resource.data.keys().hasAny(['roles']) || 
+          !request.resource.data.roles.hasAny(['ADMIN'])
         ))
       );
 
-      // Allow update self (excluding roles) or Admin
+      // Allow update if Admin OR Self-Update (excluding role elevation)
       allow update: if isSignedIn() && (
         isAdmin() || 
-        (request.auth.uid == userId && notUpdating('roles') && notUpdating('role'))
+        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['roles', 'role']))
       );
       
       allow delete: if isAdmin();
@@ -64,27 +56,30 @@ service cloud.firestore {
         request.auth.uid in resource.data.reviewers
       );
 
-      // Security Fix: Ensure researcherId matches the authenticated user
-      allow create: if isSignedIn() && request.resource.data.researcherId == request.auth.uid;
+      // Allow create if Admin OR Researcher (self)
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        request.resource.data.researcherId == request.auth.uid
+      );
 
       allow update: if isSignedIn() && (
         isAdmin() || 
         (
+           // Researcher: Can update if NOT changing restricted fields (reviews, status to approved/rejected)
            resource.data.researcherId == request.auth.uid &&
            request.resource.data.status != 'APPROVED' &&
            request.resource.data.status != 'WAITING_CERT' &&
            request.resource.data.status != 'REJECTED' &&
-           notUpdating('reviews') &&
-           notUpdating('approvalDetail') &&
-           notUpdating('adminFeedback')
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviews', 'approvalDetail', 'adminFeedback'])
         ) ||
         (
-           // Advisor can only update status to APPROVED or REJECTED (via logic)
+           // Advisor: Can update status/feedback, but cannot finalize approval (WAITING_CERT/APPROVED reserved for Admin/System)
            resource.data.advisorId == request.auth.uid &&
            request.resource.data.status != 'APPROVED' &&
            request.resource.data.status != 'WAITING_CERT'
         ) ||
         (
+           // Reviewer: Can update reviews
            request.auth.uid in resource.data.reviewers &&
            request.resource.data.status != 'APPROVED' &&
            request.resource.data.status != 'WAITING_CERT'
@@ -94,7 +89,7 @@ service cloud.firestore {
 
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn(); 
+      allow create: if isSignedIn(); // Allow system/triggers to create notifications
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid; 
     }
 

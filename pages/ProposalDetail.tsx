@@ -480,6 +480,14 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                 <div><span className="text-slate-500 block">ประเภท:</span> {proposal.type}</div>
                 <div><span className="text-slate-500 block">วันที่ยื่น:</span> {proposal.submissionDate}</div>
                 {proposal.advisorName && <div><span className="text-slate-500 block">ที่ปรึกษา:</span> {proposal.advisorName}</div>}
+                
+                {/* NEW FIELDS */}
+                <div className="col-span-2 mt-2 pt-2 border-t border-slate-100">
+                    <span className="text-slate-500 block font-medium mb-1">วัตถุประสงค์:</span> 
+                    <p className="text-slate-700 leading-relaxed bg-slate-50 p-2 rounded">{proposal.objective || '-'}</p>
+                </div>
+                <div><span className="text-slate-500 block">จำนวนกลุ่มตัวอย่าง:</span> {proposal.sampleCount ? `${proposal.sampleCount} คน` : '-'}</div>
+                <div><span className="text-slate-500 block">ระยะเวลาดำเนินการ:</span> {proposal.duration ? `${proposal.duration} เดือน` : '-'}</div>
              </div>
              
              <div className="mt-6 flex flex-col gap-2">

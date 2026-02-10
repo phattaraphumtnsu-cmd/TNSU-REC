@@ -129,6 +129,9 @@ export interface Proposal {
   certNumber?: string; // Legacy field
   titleTh: string;
   titleEn: string;
+  objective?: string; // Added
+  sampleCount?: string; // Added
+  duration?: string; // Added
   researcherId: string;
   researcherName: string;
   advisorId?: string;
