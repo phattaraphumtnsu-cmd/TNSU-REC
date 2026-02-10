@@ -40,12 +40,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             setProposals(prev => [...prev, ...result.data]);
         } else {
             setProposals(result.data);
-            
-            // Background check for expiry (Only on initial load for Admins)
-            if (user.roles.includes(Role.ADMIN)) {
-                checkExpiry(result.data); // Pass initial data for check
-                db.checkExpiringCertificates();
-            }
         }
         
         setLastDoc(result.lastDoc);
@@ -63,6 +57,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   useEffect(() => {
     if (user) {
         fetchProposals(false);
+        
+        // Fetch expiring proposals if Admin
+        if (user.roles.includes(Role.ADMIN)) {
+            const fetchExpiring = async () => {
+                const expiring = await db.getExpiringProposals(60);
+                setExpiringProposals(expiring);
+            };
+            fetchExpiring();
+        }
     }
   }, [user]);
 
@@ -77,17 +80,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               alert('เกิดข้อผิดพลาดในการลบ');
           }
       }
-  };
-
-  const checkExpiry = (data: Proposal[]) => {
-      const today = new Date();
-      const exp = data.filter(p => {
-        if (p.status !== ProposalStatus.APPROVED || !p.approvalDetail?.expiryDate) return false;
-        const expDate = new Date(p.approvalDetail.expiryDate);
-        const diffDays = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays > 0 && diffDays <= 60; // Show warning for 60 days
-      });
-      setExpiringProposals(exp);
   };
 
   if (!user) {
@@ -205,16 +197,48 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       {/* Expiry Warning for Admin */}
       {user.roles.includes(Role.ADMIN) && expiringProposals.length > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 animate-pulse">
-             <h3 className="text-red-800 font-bold flex items-center gap-2 mb-2">
-                <AlertTriangle size={20} /> แจ้งเตือน: มี {expiringProposals.length} โครงการที่ใบรับรองใกล้หมดอายุ (ภายใน 60 วัน)
-             </h3>
-             <div className="flex gap-2 overflow-x-auto pb-2">
-                {expiringProposals.map(p => (
-                   <button key={p.id} onClick={() => onNavigate('proposal', { id: p.id })} className="flex items-center gap-2 bg-white px-3 py-1 rounded border border-red-200 text-sm hover:bg-red-50 text-red-700 whitespace-nowrap">
-                      <Calendar size={12} /> {p.code} ({p.approvalDetail?.expiryDate})
-                   </button>
-                ))}
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm animate-in fade-in slide-in-from-top-4">
+             <div className="flex items-start gap-3">
+                <div className="bg-red-100 p-2 rounded-full text-red-600 mt-1">
+                    <AlertTriangle size={24} />
+                </div>
+                <div className="flex-1">
+                    <h3 className="text-red-800 font-bold text-lg mb-1">
+                        แจ้งเตือน: ใบรับรองใกล้หมดอายุ ({expiringProposals.length} โครงการ)
+                    </h3>
+                    <p className="text-sm text-red-700 mb-3">
+                        มีโครงการที่ใบรับรองจริยธรรมจะหมดอายุภายใน 60 วัน กรุณาตรวจสอบหรือแจ้งเตือนผู้วิจัยให้ดำเนินการต่ออายุ
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {expiringProposals.map(p => {
+                            const expDate = new Date(p.approvalDetail?.expiryDate || '');
+                            const today = new Date();
+                            const diffDays = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                            
+                            return (
+                               <button 
+                                  key={p.id} 
+                                  onClick={() => onNavigate('proposal', { id: p.id })} 
+                                  className="flex items-center justify-between gap-3 bg-white p-3 rounded-lg border border-red-200 hover:bg-red-50 hover:shadow-md transition-all text-left group"
+                               >
+                                  <div className="min-w-0">
+                                      <div className="font-bold text-red-700 text-sm truncate">{p.code}</div>
+                                      <div className="text-xs text-slate-500 truncate group-hover:text-red-600">{p.titleTh}</div>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                      <div className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">
+                                          อีก {diffDays} วัน
+                                      </div>
+                                      <div className="text-[10px] text-slate-400 mt-1">
+                                          {p.approvalDetail?.expiryDate}
+                                      </div>
+                                  </div>
+                               </button>
+                            );
+                        })}
+                    </div>
+                </div>
              </div>
           </div>
       )}
@@ -323,10 +347,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-mono text-blue-600 mb-1">{p.code || 'รอรหัส'}</span>
-                          <span className="font-medium text-slate-800 line-clamp-1">{p.titleTh}</span>
-                          <span className="text-xs text-slate-500 line-clamp-1">{p.titleEn}</span>
+                        <div className="flex flex-col gap-1">
+                          <div>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100 font-mono">
+                                {p.code || 'รอรหัส'}
+                            </span>
+                          </div>
+                          <span className="font-semibold text-slate-800 line-clamp-1 hover:text-blue-600 transition-colors" title={p.titleTh}>{p.titleTh}</span>
+                          <span className="text-xs text-slate-500 line-clamp-1" title={p.titleEn}>{p.titleEn}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">

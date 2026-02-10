@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { ProposalStatus, ReviewType, Role, UserType, User } from '../types';
 import { ArrowLeft, Loader2, Link as LinkIcon, Info, AlertCircle, UserCheck, Wallet, Search, CheckCircle, X } from 'lucide-react';
-import FileUploader from '../components/FileUploader';
 
 interface SubmissionFormProps {
   onNavigate: (page: string) => void;
@@ -54,7 +53,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
     }
 
     if (!isStudent && !formData.paymentSlipLink) {
-      alert('กรุณาแนบหลักฐานการชำระเงินค่าธรรมเนียม (1,500 บาท)');
+      alert('กรุณาแนบลิงก์หลักฐานการชำระเงินค่าธรรมเนียม (1,500 บาท)');
       return;
     }
 
@@ -310,24 +309,18 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                         <div className="flex items-center gap-2 mb-2 text-slate-800 font-medium">
                              <Wallet size={18} className="text-slate-500"/> ค่าธรรมเนียมการพิจารณา: 1,500 บาท
                         </div>
-                        <FileUploader 
-                            folder="payment_slips" 
-                            label="อัปโหลดไฟล์หลักฐาน (รูปภาพ/PDF) *"
-                            onUploadComplete={(url) => setFormData(prev => ({ ...prev, paymentSlipLink: url }))}
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            currentUrl={formData.paymentSlipLink}
-                            required
-                        />
-                        <div className="text-center text-xs text-slate-400 my-2">- หรือ -</div>
+                        
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">ระบุเป็นลิงก์ (กรณีไฟล์อยู่ภายนอก)</label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">ลิงก์หลักฐานการชำระเงิน (Google Drive / Cloud Storage) <span className="text-red-500">*</span></label>
                             <input 
                                 type="url" 
                                 placeholder="https://..." 
                                 className="w-full py-2.5 px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                                 value={formData.paymentSlipLink} 
-                                onChange={e => setFormData({...formData, paymentSlipLink: e.target.value})} 
+                                onChange={e => setFormData({...formData, paymentSlipLink: e.target.value})}
+                                required 
                             />
+                            <p className="text-xs text-slate-500 mt-1">* กรุณาอัปโหลดสลิปโอนเงินลงใน Google Drive และนำลิงก์มาวาง (ตั้งค่าการแชร์เป็น Anyone with the link)</p>
                         </div>
                     </div>
                 ) : (

@@ -42,23 +42,26 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
       const user = await db.login(email, password);
       onLogin(user);
     } catch (err: any) {
+      console.error("Login error object:", err);
       const errCode = err.code || '';
       const errMsg = err.message || '';
 
+      // Specific error mapping
       if (errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) {
-         console.warn("Login failed: Invalid credential");
          setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
       } else if (errCode === 'auth/user-not-found') {
-         console.warn("Login failed: User not found");
-         setError('ไม่พบผู้ใช้งานในระบบ');
+         setError('ไม่พบบัญชีผู้ใช้งานนี้ในระบบ');
       } else if (errCode === 'auth/wrong-password') {
-         console.warn("Login failed: Wrong password");
          setError('รหัสผ่านไม่ถูกต้อง');
+      } else if (errCode === 'auth/invalid-email') {
+         setError('รูปแบบอีเมลไม่ถูกต้อง');
+      } else if (errCode === 'auth/user-disabled') {
+         setError('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
       } else if (errCode === 'auth/too-many-requests') {
-         console.warn("Login failed: Too many requests");
          setError('มีการพยายามเข้าสู่ระบบมากเกินไป กรุณารอสักครู่แล้วลองใหม่');
+      } else if (errCode === 'auth/network-request-failed') {
+         setError('เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย กรุณาตรวจสอบอินเทอร์เน็ต');
       } else {
-         console.error("Login error:", err);
          setError(errMsg || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
       }
     } finally {
@@ -69,7 +72,11 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (regPass !== regConfirmPass) {
-      setError('รหัสผ่านไม่ตรงกัน');
+      setError('รหัสผ่านยืนยันไม่ตรงกับรหัสผ่านที่ตั้งไว้');
+      return;
+    }
+    if (regPass.length < 6) {
+      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
       return;
     }
     
@@ -91,11 +98,20 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
       alert('ลงทะเบียนสำเร็จ ระบบจะนำท่านเข้าสู่ระบบอัตโนมัติ');
       onLogin(newUser);
     } catch (err: any) {
-      console.error(err);
-      if (err.code === 'auth/email-already-in-use') {
-         setError('อีเมลนี้ถูกใช้งานแล้ว');
+      console.error("Register error:", err);
+      const errCode = err.code || '';
+      const errMsg = err.message || '';
+
+      if (errCode === 'auth/email-already-in-use') {
+         setError('อีเมลนี้มีผู้ใช้งานแล้ว');
+      } else if (errCode === 'auth/invalid-email') {
+         setError('รูปแบบอีเมลไม่ถูกต้อง');
+      } else if (errCode === 'auth/weak-password') {
+         setError('รหัสผ่านคาดเดาง่ายเกินไป กรุณาตั้งรหัสผ่านให้ยากขึ้น (อย่างน้อย 6 ตัวอักษร)');
+      } else if (errCode === 'auth/network-request-failed') {
+         setError('เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย กรุณาตรวจสอบอินเทอร์เน็ต');
       } else {
-         setError('การลงทะเบียนล้มเหลว: ' + (err.message || 'โปรดลองอีกครั้ง'));
+         setError('การลงทะเบียนล้มเหลว: ' + (errMsg || 'โปรดลองอีกครั้ง'));
       }
     } finally {
       setLoading(false);
@@ -110,7 +126,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
       alert(`ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านไปที่ ${resetEmail} แล้ว (หากอีเมลมีอยู่ในระบบ)`);
       setView('LOGIN');
     } catch (err) {
-      setError('เกิดข้อผิดพลาดในการส่งอีเมล');
+      setError('เกิดข้อผิดพลาดในการส่งอีเมล กรุณาตรวจสอบอีเมลหรือลองใหม่อีกครั้ง');
     } finally {
       setLoading(false);
     }
@@ -179,7 +195,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 flex items-center gap-2 animate-pulse">
-              <span className="font-bold">!</span> {error}
+              <span className="font-bold flex-shrink-0">!</span> 
+              <span>{error}</span>
             </div>
           )}
 

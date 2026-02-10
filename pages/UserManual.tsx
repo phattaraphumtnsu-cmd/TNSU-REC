@@ -1,278 +1,381 @@
+
 import React, { useState } from 'react';
 import { db } from '../services/database';
-import { ArrowLeft, BookOpen, UserPlus, FileText, CheckCircle, Shield, AlertCircle, HelpCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, UserPlus, FileText, CheckCircle, Shield, AlertCircle, HelpCircle, HardDrive, GitBranch, PlayCircle, FileCheck, RefreshCw } from 'lucide-react';
 
 interface UserManualProps {
   onNavigate: (page: string) => void;
 }
 
 const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
-  const [activeTab, setActiveTab] = useState('intro');
+  const [activeTab, setActiveTab] = useState('workflow');
   const user = db.currentUser;
 
   const tabs = [
-    { id: 'intro', label: 'เริ่มต้นใช้งาน / ลงทะเบียน', icon: UserPlus },
-    { id: 'researcher', label: 'สำหรับนักวิจัย', icon: FileText },
-    { id: 'approver', label: 'สำหรับที่ปรึกษา/กรรมการ', icon: CheckCircle },
-    { id: 'admin', label: 'สำหรับ Admin', icon: Shield },
-    { id: 'status', label: 'ความหมายสถานะ', icon: AlertCircle },
+    { id: 'workflow', label: 'ภาพรวมกระบวนการ (Workflow)', icon: GitBranch },
+    { id: 'prep', label: 'การเตรียมเอกสาร (Google Drive)', icon: HardDrive },
+    { id: 'researcher', label: 'คู่มือนักวิจัย (Researcher)', icon: FileText },
+    { id: 'approver', label: 'คู่มือที่ปรึกษา/กรรมการ', icon: CheckCircle },
+    { id: 'admin', label: 'คู่มือผู้ดูแลระบบ (Admin)', icon: Shield },
   ];
 
   return (
-    <div className="max-w-5xl mx-auto pb-10">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-6xl mx-auto pb-12">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
         <div>
            <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
              <BookOpen className="text-blue-600" /> คู่มือการใช้งานระบบ TNSU-REC
            </h2>
-           <p className="text-slate-500">คำแนะนำการใช้งานสำหรับทุกบทบาทในระบบจริยธรรมการวิจัยในมนุษย์</p>
+           <p className="text-slate-500 mt-1">รายละเอียดขั้นตอนการทำงานและการใช้งานระบบจริยธรรมการวิจัยในมนุษย์</p>
         </div>
         {!user && (
-          <button onClick={() => onNavigate('auth')} className="flex items-center text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg transition-colors">
+          <button onClick={() => onNavigate('auth')} className="flex items-center text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg transition-colors border border-blue-200 shadow-sm">
             <ArrowLeft size={18} className="mr-2" /> กลับหน้าเข้าสู่ระบบ
           </button>
         )}
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6">
+      <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar Tabs */}
-        <div className="w-full md:w-64 flex-shrink-0 space-y-2">
+        <div className="w-full lg:w-72 flex-shrink-0 space-y-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                className={`w-full flex items-center space-x-3 px-4 py-4 rounded-xl text-sm font-medium transition-all duration-200 border ${
                   activeTab === tab.id
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-100'
+                    ? 'bg-blue-600 text-white shadow-lg border-blue-600 transform scale-105'
+                    : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <Icon size={18} />
+                <Icon size={20} className={activeTab === tab.id ? 'text-blue-200' : 'text-slate-400'} />
                 <span>{tab.label}</span>
               </button>
             );
           })}
+
+          <div className="bg-slate-100 p-4 rounded-xl mt-6 border border-slate-200">
+             <h4 className="font-bold text-slate-700 text-sm mb-2 flex items-center gap-2">
+                <HelpCircle size={16}/> ต้องการความช่วยเหลือ?
+             </h4>
+             <p className="text-xs text-slate-500 leading-relaxed">
+                หากพบปัญหาในการใช้งาน หรือต้องการสอบถามข้อมูลเพิ่มเติม กรุณาติดต่อเจ้าหน้าที่สำนักงานบัณฑิตศึกษา หรือ Admin ประจำระบบ
+             </p>
+          </div>
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-white p-8 rounded-xl shadow-sm border border-slate-200 min-h-[500px]">
+        <div className="flex-1 bg-white p-8 rounded-2xl shadow-sm border border-slate-200 min-h-[600px]">
           
-          {/* TAB: INTRO & REGISTRATION */}
-          {activeTab === 'intro' && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <h3 className="text-xl font-bold text-slate-800 border-b pb-3">การเริ่มต้นใช้งานและการลงทะเบียน</h3>
-              
+          {/* TAB: WORKFLOW ANALYSIS */}
+          {activeTab === 'workflow' && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="border-b pb-4">
+                  <h3 className="text-xl font-bold text-slate-800">วิเคราะห์กระบวนการทำงาน (System Workflow Analysis)</h3>
+                  <p className="text-slate-500 text-sm mt-1">แผนภาพแสดงลำดับขั้นตอนการพิจารณาจริยธรรมการวิจัย ตั้งแต่เริ่มต้นจนสิ้นสุด</p>
+              </div>
+
+              {/* Workflow Diagram */}
               <div className="space-y-4">
-                <div className="flex gap-4">
-                   <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 flex-shrink-0">1</div>
-                   <div>
-                     <h4 className="font-semibold text-slate-800">การเข้าใช้งานครั้งแรก</h4>
-                     <p className="text-slate-600 text-sm mt-1">ผู้ใช้งานทุกคนต้องทำการลงทะเบียนบัญชีใหม่ โดยกดที่ปุ่ม <span className="text-blue-600 font-medium">"ยังไม่มีบัญชี? ลงทะเบียนที่นี่"</span> ในหน้า Login</p>
-                   </div>
-                </div>
-
-                <div className="flex gap-4">
-                   <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 flex-shrink-0">2</div>
-                   <div>
-                     <h4 className="font-semibold text-slate-800">การเลือกบทบาท (Role)</h4>
-                     <ul className="list-disc pl-5 text-sm text-slate-600 mt-2 space-y-1">
-                       <li><span className="font-semibold text-slate-900">ผู้วิจัย (Researcher):</span> สำหรับนักศึกษา อาจารย์ หรือบุคลากรที่ต้องการยื่นขอจริยธรรม</li>
-                       <li><span className="font-semibold text-slate-900">อาจารย์ที่ปรึกษา (Advisor):</span> สำหรับอาจารย์ที่ต้องอนุมัติโครงการของนักศึกษาในที่ปรึกษา</li>
-                     </ul>
-                     <div className="bg-yellow-50 p-3 rounded mt-2 text-xs text-yellow-800 border border-yellow-200">
-                        * สำหรับบทบาท <strong>Reviewer (กรรมการ)</strong> จะต้องถูกเพิ่มโดย Admin เท่านั้น ไม่สามารถสมัครเองได้
-                     </div>
-                   </div>
-                </div>
-
-                <div className="flex gap-4">
-                   <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 flex-shrink-0">3</div>
-                   <div>
-                     <h4 className="font-semibold text-slate-800">ข้อมูลที่ต้องใช้</h4>
-                     <p className="text-slate-600 text-sm mt-1">กรอกข้อมูล ชื่อ-นามสกุล, อีเมล (แนะนำอีเมลสถาบัน), รหัสผ่าน และเลือกสังกัด (วิทยาเขต/คณะ) ให้ถูกต้อง</p>
-                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: RESEARCHER */}
-          {activeTab === 'researcher' && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <h3 className="text-xl font-bold text-slate-800 border-b pb-3">คู่มือสำหรับนักวิจัย (Researcher)</h3>
-
-              <div className="space-y-6">
-                <section>
-                  <h4 className="font-bold text-blue-700 mb-2">1. การยื่นคำขอใหม่</h4>
-                  <p className="text-sm text-slate-600 mb-2">
-                    เมื่อเข้าสู่ระบบ ให้กดที่เมนู <strong>"ยื่นคำขอใหม่"</strong> หรือปุ่ม <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">+ ยื่นคำขอใหม่</span> ในหน้าแดชบอร์ด
-                  </p>
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm">
-                    <strong>สิ่งที่ต้องเตรียม:</strong>
-                    <ul className="list-disc pl-5 mt-2 space-y-1 text-slate-600">
-                      <li>รายละเอียดโครงการ (ชื่อไทย/อังกฤษ, จำนวนกลุ่มตัวอย่าง, ระยะเวลา)</li>
-                      <li><strong>ลิงก์ Google Drive:</strong> ที่แชร์สิทธิ์เป็น "Anyone with the link can view" ภายในประกอบด้วยไฟล์ PDF ที่จำเป็น (แบบคำขอ, โครงร่าง, เครื่องมือ, เอกสารชี้แจง ฯลฯ)</li>
-                      <li><strong>หลักฐานการโอนเงิน:</strong> (สำหรับบุคคลภายนอก/อาจารย์) ค่าธรรมเนียม 1,500 บาท</li>
-                    </ul>
+                  <WorkflowStep 
+                      step="1" 
+                      title="ยื่นคำขอ (Submission)" 
+                      desc="นักวิจัยกรอกข้อมูลและแนบลิงก์ Google Drive" 
+                      role="Researcher"
+                      color="blue"
+                  />
+                  
+                  {/* Branching for Student */}
+                  <div className="pl-8 border-l-2 border-dashed border-slate-300 ml-6 py-4 space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-bold text-slate-500">
+                          <span className="bg-slate-200 px-2 py-1 rounded">กรณีเป็นนักศึกษา</span>
+                      </div>
+                      <WorkflowStep 
+                          step="1.5" 
+                          title="ที่ปรึกษาพิจารณา (Advisor Review)" 
+                          desc="ตรวจสอบความถูกต้องเบื้องต้น (อนุมัติ/ส่งคืนแก้ไข)" 
+                          role="Advisor"
+                          color="orange"
+                      />
                   </div>
-                </section>
 
-                <section>
-                  <h4 className="font-bold text-blue-700 mb-2">2. การติดตามสถานะ</h4>
-                  <p className="text-sm text-slate-600">
-                    ท่านสามารถดูสถานะโครงการได้ที่หน้า <strong>"แดชบอร์ด"</strong> โดยสถานะจะเปลี่ยนไปตามขั้นตอน (ดูความหมายสถานะที่แท็บสุดท้าย)
-                  </p>
-                </section>
+                  <WorkflowStep 
+                      step="2" 
+                      title="เจ้าหน้าที่ตรวจสอบ (Admin Check)" 
+                      desc="ตรวจสอบเอกสารครบถ้วน และคัดเลือกกรรมการ (Assign Reviewers)" 
+                      role="Admin"
+                      color="purple"
+                  />
 
-                <section>
-                  <h4 className="font-bold text-blue-700 mb-2">3. การแก้ไขโครงการ (Revision)</h4>
-                  <p className="text-sm text-slate-600 mb-2">
-                    หากสถานะเป็น <span className="text-orange-600 font-bold">แก้ไขตามข้อเสนอแนะ</span> ให้คลิกที่รูปดวงตา <EyeIcon /> เพื่อดูรายละเอียด
-                  </p>
-                  <ul className="list-decimal pl-5 text-sm text-slate-600 space-y-1">
-                    <li>อ่านข้อเสนอแนะจากกรรมการ (Consolidated Feedback)</li>
-                    <li>แก้ไขไฟล์ในเครื่องคอมพิวเตอร์ และอัพโหลดไฟล์ชุดใหม่ขึ้น Google Drive (หรือสร้าง Folder ใหม่)</li>
-                    <li>นำลิงก์ไฟล์ใหม่มาใส่ในช่อง <strong>"ส่งแก้ไขโครงการ"</strong> ด้านล่างของหน้ารายละเอียด แล้วกดส่ง</li>
-                  </ul>
-                </section>
-                
-                <section>
-                   <h4 className="font-bold text-blue-700 mb-2">4. การรับใบรับรอง</h4>
-                   <p className="text-sm text-slate-600">
-                      เมื่อสถานะเป็น <span className="text-green-600 font-bold">อนุมัติ/ได้รับใบรับรอง</span> จะปรากฏปุ่มสีเขียวให้ดาวน์โหลดใบรับรองอิเล็กทรอนิกส์ (E-Certificate) ได้ทันที
-                   </p>
-                </section>
+                  <WorkflowStep 
+                      step="3" 
+                      title="การพิจารณา (In Review)" 
+                      desc="กรรมการผู้ทรงคุณวุฒิประเมินโครงการและลงมติ (Approve / Fix / Reject)" 
+                      role="Reviewer"
+                      color="indigo"
+                  />
+
+                  <WorkflowStep 
+                      step="4" 
+                      title="สรุปผล (Final Decision)" 
+                      desc="Admin รวบรวมมติและแจ้งผลไปยังนักวิจัย" 
+                      role="Admin"
+                      color="blue"
+                  />
+
+                  {/* Feedback Loop */}
+                  <div className="pl-8 border-l-2 border-dashed border-slate-300 ml-6 py-4">
+                      <div className="bg-red-50 border border-red-200 p-3 rounded-lg flex items-start gap-3">
+                          <RefreshCw className="text-red-500 mt-1" size={18}/>
+                          <div>
+                              <span className="font-bold text-red-800 text-sm">กรณี "ให้แก้ไข" (Revision Required)</span>
+                              <p className="text-xs text-red-700 mt-1">
+                                  นักวิจัยต้องแก้ไขเอกสารและส่งลิงก์ใหม่ -> กลับไปขั้นตอนที่ 2 (Admin Check)
+                              </p>
+                          </div>
+                      </div>
+                  </div>
+
+                  <WorkflowStep 
+                      step="5" 
+                      title="ออกใบรับรอง (Certification)" 
+                      desc="เมื่อผ่านการอนุมัติ ระบบจะออกเลขใบรับรองและให้ดาวน์โหลด E-Certificate" 
+                      role="System/Admin"
+                      color="green"
+                  />
               </div>
             </div>
           )}
 
-          {/* TAB: APPROVER */}
-          {activeTab === 'approver' && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <h3 className="text-xl font-bold text-slate-800 border-b pb-3">สำหรับที่ปรึกษา และ กรรมการ</h3>
-
-              <div className="space-y-8">
-                {/* Advisor */}
-                <div>
-                   <h4 className="text-lg font-bold text-slate-700 mb-2 flex items-center gap-2">
-                      <div className="w-2 h-6 bg-orange-500 rounded-full"></div> 
-                      บทบาทอาจารย์ที่ปรึกษา (Advisor)
-                   </h4>
-                   <p className="text-sm text-slate-600 mb-3">
-                      ทำหน้าที่คัดกรองโครงการของนักศึกษาในที่ปรึกษา <strong>ก่อน</strong> ส่งเข้าสู่ระบบส่วนกลาง
-                   </p>
-                   <ol className="list-decimal pl-5 text-sm text-slate-600 space-y-2">
-                      <li>ล็อกอินเข้าสู่ระบบ จะเห็นโครงการที่ระบุชื่อท่านเป็นที่ปรึกษา</li>
-                      <li>สถานะจะเป็น <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs">รอที่ปรึกษาอนุมัติ</span></li>
-                      <li>กดเข้าไปดูรายละเอียด ตรวจสอบความเรียบร้อยของเอกสาร</li>
-                      <li>กดปุ่ม <strong>"อนุมัติให้นักศึกษา"</strong> เพื่อส่งเรื่องต่อให้ Admin ตรวจสอบ</li>
-                   </ol>
+          {/* TAB: PREPARATION (GOOGLE DRIVE) */}
+          {activeTab === 'prep' && (
+             <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="border-b pb-4">
+                    <h3 className="text-xl font-bold text-slate-800">การเตรียมเอกสารด้วย Google Drive (สำคัญมาก)</h3>
+                    <p className="text-slate-500 text-sm mt-1">เนื่องจากระบบเน้นความรวดเร็วและรองรับไฟล์ขนาดใหญ่ ท่านต้องเตรียมไฟล์บน Cloud Storage ก่อนยื่นคำขอ</p>
                 </div>
 
-                <hr className="border-slate-100" />
-
-                {/* Reviewer */}
-                <div>
-                   <h4 className="text-lg font-bold text-slate-700 mb-2 flex items-center gap-2">
-                      <div className="w-2 h-6 bg-blue-500 rounded-full"></div> 
-                      บทบาทกรรมการพิจารณา (Reviewer)
-                   </h4>
-                   <p className="text-sm text-slate-600 mb-3">
-                      ทำหน้าที่ประเมินจริยธรรมการวิจัยตามที่ได้รับมอบหมายจาก Admin
-                   </p>
-                   <ol className="list-decimal pl-5 text-sm text-slate-600 space-y-2">
-                      <li>เมื่อได้รับมอบหมาย โครงการจะปรากฏใน Dashboard สถานะ <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">อยู่ระหว่างพิจารณา</span></li>
-                      <li>กดปุ่ม <span className="font-mono bg-slate-100 px-1">Edit</span> เพื่อเข้าสู่หน้าประเมิน</li>
-                      <li>อ่านรายละเอียดและเปิดลิงก์เอกสารแนบ</li>
-                      <li>เลือกผลการพิจารณา:
-                         <ul className="list-disc pl-5 mt-1 mb-1 text-slate-500">
-                            <li><strong>สมควรอนุมัติ:</strong> ไม่มีการแก้ไข</li>
-                            <li><strong>ให้แก้ไข:</strong> มีข้อบกพร่องต้องปรับปรุง (ต้องระบุคอมเมนต์)</li>
-                            <li><strong>ไม่อนุมัติ:</strong> ผิดหลักจริยธรรมร้ายแรง</li>
-                         </ul>
-                      </li>
-                      <li>พิมพ์ข้อเสนอแนะ (Comment) ให้ชัดเจน แล้วกดยืนยัน</li>
-                   </ol>
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-5">
+                    <h4 className="font-bold text-orange-800 flex items-center gap-2 mb-2">
+                        <AlertCircle size={20}/> ข้อควรระวังเรื่องสิทธิ์การเข้าถึง (Permission)
+                    </h4>
+                    <p className="text-sm text-orange-700 leading-relaxed">
+                        ปัญหาที่พบบ่อยที่สุดคือ <strong>"กรรมการเปิดไฟล์ไม่ได้"</strong> กรุณาตั้งค่าการแชร์โฟลเดอร์หรือไฟล์ให้เป็น 
+                        <span className="font-bold bg-white px-2 py-0.5 rounded mx-1 border border-orange-300">"Anyone with the link (ทุกคนที่มีลิงก์)"</span> 
+                        และเลือกสิทธิ์เป็น <strong>Viewer (ผู้มีสิทธิ์อ่าน)</strong>
+                    </p>
                 </div>
+
+                <div className="space-y-6 mt-6">
+                    <div className="flex gap-4">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg flex-shrink-0">1</div>
+                        <div>
+                            <h5 className="font-bold text-slate-800 text-lg">สร้างโฟลเดอร์โครงการ</h5>
+                            <p className="text-sm text-slate-600 mt-1">สร้าง Folder ใน Google Drive ของท่าน ตั้งชื่อให้สื่อความหมาย เช่น "TNSU_Research_2024_ชื่อผู้วิจัย"</p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex gap-4">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg flex-shrink-0">2</div>
+                        <div>
+                            <h5 className="font-bold text-slate-800 text-lg">อัปโหลดไฟล์ที่จำเป็น</h5>
+                            <p className="text-sm text-slate-600 mt-1">แปลงไฟล์เอกสารทั้งหมดเป็น <strong>PDF</strong> และอัปโหลดลงใน Folder (แยกไฟล์ให้ชัดเจน ไม่ควรรวมเป็นไฟล์เดียวหากไม่จำเป็น)</p>
+                            <ul className="list-disc pl-5 mt-2 text-sm text-slate-500 space-y-1">
+                                <li>แบบเสนอโครงการวิจัย (Submission Form)</li>
+                                <li>โครงร่างการวิจัย (Proposal Protocol)</li>
+                                <li>เครื่องมือที่ใช้ในการวิจัย (Questionnaire/Interview Guide)</li>
+                                <li>เอกสารชี้แจงและขอความยินยอม (Participant Information Sheet & Informed Consent)</li>
+                                <li>ประวัติผู้วิจัย (CV) และใบรับรองจริยธรรม (Certificate of Human Ethics Training)</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg flex-shrink-0">3</div>
+                        <div>
+                            <h5 className="font-bold text-slate-800 text-lg">คัดลอกลิงก์ (Copy Link)</h5>
+                            <p className="text-sm text-slate-600 mt-1">คลิกขวาที่โฟลเดอร์ -> Share -> เปลี่ยน General access เป็น <strong>Anyone with the link</strong> -> Copy Link เพื่อนำมาวางในระบบ</p>
+                        </div>
+                    </div>
+                </div>
+             </div>
+          )}
+
+          {/* TAB: RESEARCHER GUIDE */}
+          {activeTab === 'researcher' && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="border-b pb-4">
+                  <h3 className="text-xl font-bold text-slate-800">คู่มือสำหรับนักวิจัย (Researcher)</h3>
+                  <p className="text-slate-500 text-sm mt-1">ขั้นตอนการยื่นขอ, ติดตามผล, และการแก้ไขโครงการ</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {/* Step 1 */}
+                 <div className="border border-slate-200 rounded-xl p-5 hover:border-blue-300 transition-colors">
+                    <h4 className="font-bold text-blue-700 mb-2 flex items-center gap-2">1. ลงทะเบียน/เข้าสู่ระบบ</h4>
+                    <p className="text-sm text-slate-600">
+                        สมัครสมาชิกโดยใช้อีเมล (แนะนำอีเมลสถาบัน) เลือกบทบาทเป็น <strong>"ผู้วิจัย"</strong> และระบุสถานะ (นักศึกษา/บุคลากร) ให้ถูกต้อง
+                    </p>
+                 </div>
+
+                 {/* Step 2 */}
+                 <div className="border border-slate-200 rounded-xl p-5 hover:border-blue-300 transition-colors">
+                    <h4 className="font-bold text-blue-700 mb-2 flex items-center gap-2">2. ยื่นคำขอ (Submit)</h4>
+                    <p className="text-sm text-slate-600">
+                        เมนู "ยื่นคำขอใหม่" -> กรอกข้อมูลโครงการ -> วางลิงก์ Google Drive -> (ถ้านักศึกษา) เลือกที่ปรึกษา -> (ถ้าบุคลากร) แนบลิงก์สลิปโอนเงิน -> กดส่ง
+                    </p>
+                 </div>
+
+                 {/* Step 3 */}
+                 <div className="border border-slate-200 rounded-xl p-5 hover:border-blue-300 transition-colors">
+                    <h4 className="font-bold text-blue-700 mb-2 flex items-center gap-2">3. ติดตามสถานะ</h4>
+                    <p className="text-sm text-slate-600">
+                        ตรวจสอบสถานะที่ "แดชบอร์ด" 
+                        <br/>
+                        <span className="text-xs text-slate-400">• รอที่ปรึกษาอนุมัติ (นักศึกษาต้องแจ้งอาจารย์)</span>
+                        <br/>
+                        <span className="text-xs text-slate-400">• รอเจ้าหน้าที่ตรวจสอบ (Admin กำลังเช็คเอกสาร)</span>
+                    </p>
+                 </div>
+
+                 {/* Step 4 */}
+                 <div className="border border-slate-200 rounded-xl p-5 hover:border-blue-300 transition-colors bg-orange-50/50">
+                    <h4 className="font-bold text-orange-700 mb-2 flex items-center gap-2">4. การแก้ไข (Revision)</h4>
+                    <p className="text-sm text-slate-600">
+                        หากสถานะเป็น <strong>"แก้ไขตามข้อเสนอแนะ"</strong> หรือ <strong>"เอกสารไม่ถูกต้อง"</strong>
+                        <br/>
+                        ให้คลิกเข้าไปดูรายละเอียด -> อ่านคอมเมนต์ -> แก้ไขไฟล์ใน Drive -> นำลิงก์ไฟล์ใหม่มาวางในช่อง "ส่งแบบขอแก้ไข"
+                    </p>
+                 </div>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-xl p-6 mt-6">
+                 <h4 className="font-bold text-green-800 mb-3 flex items-center gap-2"><FileCheck /> หลังได้รับอนุมัติ (Post-Approval)</h4>
+                 <ul className="list-disc pl-5 space-y-2 text-sm text-green-800">
+                    <li>ท่านสามารถดาวน์โหลด <strong>ใบรับรอง (E-Certificate)</strong> ได้ที่หน้าโครงการ</li>
+                    <li>เมื่อครบกำหนด (6 เดือน / 1 ปี) ระบบจะแจ้งเตือนให้ส่ง <strong>รายงานความก้าวหน้า (Progress Report)</strong></li>
+                    <li>หากต้องการต่ออายุใบรับรอง ให้กดปุ่ม <strong>"ขอต่ออายุ (Renew)"</strong> ก่อนใบรับรองหมดอายุ 30 วัน</li>
+                 </ul>
               </div>
             </div>
+          )}
+
+          {/* TAB: ADVISOR & REVIEWER */}
+          {activeTab === 'approver' && (
+             <div className="space-y-8 animate-in fade-in duration-300">
+                <div className="border-b pb-4">
+                  <h3 className="text-xl font-bold text-slate-800">คู่มือสำหรับที่ปรึกษาและกรรมการ</h3>
+                  <p className="text-slate-500 text-sm mt-1">บทบาทในการกลั่นกรองและประเมินคุณภาพงานวิจัย</p>
+                </div>
+
+                {/* ADVISOR */}
+                <div className="bg-yellow-50/50 border border-yellow-200 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-yellow-800 mb-4 flex items-center gap-2">
+                        <UserPlus className="bg-yellow-200 p-1 rounded text-yellow-800" size={24}/> 
+                        สำหรับอาจารย์ที่ปรึกษา (Advisor)
+                    </h4>
+                    <div className="space-y-3 text-sm text-slate-700">
+                        <p>ท่านมีหน้าที่ <strong>"คัดกรองเบื้องต้น"</strong> โครงการของนักศึกษาในที่ปรึกษาของท่าน</p>
+                        <ol className="list-decimal pl-5 space-y-2 bg-white p-4 rounded-lg border border-yellow-100">
+                            <li>เมื่อนักศึกษายื่นคำขอ ระบบจะส่งอีเมลแจ้งเตือนท่าน</li>
+                            <li>เข้าสู่ระบบ -> แดชบอร์ด -> รายการที่สถานะ <strong>"รอที่ปรึกษาอนุมัติ"</strong></li>
+                            <li>ตรวจสอบไฟล์เอกสารจากลิงก์ Google Drive</li>
+                            <li>
+                                <strong>กรณีผ่าน:</strong> กดปุ่ม "อนุมัติโครงการ (Approve)" เพื่อส่งต่อให้ Admin
+                                <br/>
+                                <strong>กรณีไม่ผ่าน:</strong> กดปุ่ม "ส่งคืนแก้ไข (Return)" และระบุข้อความแจ้งนักศึกษา
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+
+                {/* REVIEWER */}
+                <div className="bg-indigo-50/50 border border-indigo-200 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-indigo-800 mb-4 flex items-center gap-2">
+                        <CheckCircle className="bg-indigo-200 p-1 rounded text-indigo-800" size={24}/> 
+                        สำหรับกรรมการ (Reviewer)
+                    </h4>
+                    <div className="space-y-3 text-sm text-slate-700">
+                        <p>ท่านจะได้รับการแต่งตั้งจาก Admin ให้พิจารณาโครงการตามความเชี่ยวชาญ</p>
+                        <ol className="list-decimal pl-5 space-y-2 bg-white p-4 rounded-lg border border-indigo-100">
+                            <li><strong>การตอบรับ:</strong> เมื่อได้รับอีเมล/แจ้งเตือน ให้กดเข้าไปดูและกด "ตอบรับ" หรือ "ปฏิเสธ" การพิจารณา</li>
+                            <li><strong>การประเมิน:</strong> อ่านเอกสารและลงความเห็นในแบบฟอร์ม (Vote & Comment)
+                                <ul className="list-disc pl-5 mt-1 text-slate-500">
+                                    <li>APPROVE: อนุมัติโดยไม่มีเงื่อนไข</li>
+                                    <li>FIX: ให้แก้ไข (ต้องระบุรายละเอียดสิ่งที่ต้องแก้)</li>
+                                    <li>REJECT: ไม่อนุมัติ (ผิดจริยธรรมร้ายแรง)</li>
+                                </ul>
+                            </li>
+                            <li><strong>การส่งผล:</strong> สามารถแนบไฟล์ Word/PDF ที่ท่านทำ Comment ไว้ (ถ้ามี) แล้วกดส่งผลการพิจารณา</li>
+                        </ol>
+                    </div>
+                </div>
+             </div>
           )}
 
           {/* TAB: ADMIN */}
           {activeTab === 'admin' && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <h3 className="text-xl font-bold text-slate-800 border-b pb-3">สำหรับผู้ดูแลระบบ (Admin)</h3>
-              <p className="text-sm text-slate-600">Admin มีหน้าที่บริหารจัดการ Workflow ทั้งหมดของระบบ</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="border p-4 rounded-lg bg-slate-50">
-                    <h5 className="font-bold text-slate-800 mb-2">1. ตรวจสอบเบื้องต้น (Screening)</h5>
-                    <p className="text-xs text-slate-600">เมื่อโครงการเข้ามาในสถานะ "รอเจ้าหน้าที่ตรวจสอบ" ให้เช็คเอกสาร หากไม่ครบให้ส่งคืนแก้ไข หากครบให้เลือกประเภทการพิจารณา (Exempt/Expedited/Full Board)</p>
-                 </div>
-                 <div className="border p-4 rounded-lg bg-slate-50">
-                    <h5 className="font-bold text-slate-800 mb-2">2. มอบหมายกรรมการ (Assign)</h5>
-                    <p className="text-xs text-slate-600">เลือก Reviewer จากรายชื่อในระบบ ระบบจะเปลี่ยนสถานะเป็น "อยู่ระหว่างพิจารณา"</p>
-                 </div>
-                 <div className="border p-4 rounded-lg bg-slate-50">
-                    <h5 className="font-bold text-slate-800 mb-2">3. สรุปผล (Decision)</h5>
-                    <p className="text-xs text-slate-600">เมื่อกรรมการลงคะแนนครบ ให้รวบรวมข้อคิดเห็น และกด "สรุปผลการพิจารณา" เพื่อแจ้งผู้วิจัย (ให้แก้ไข หรือ อนุมัติ)</p>
-                 </div>
-                 <div className="border p-4 rounded-lg bg-slate-50">
-                    <h5 className="font-bold text-slate-800 mb-2">4. จัดการผู้ใช้งาน</h5>
-                    <p className="text-xs text-slate-600">เพิ่ม/ลบ สมาชิก และตั้งค่า Role กรรมการ ได้ที่เมนู "จัดการผู้ใช้งาน"</p>
-                 </div>
-              </div>
-            </div>
-          )}
+             <div className="space-y-8 animate-in fade-in duration-300">
+                <div className="border-b pb-4">
+                  <h3 className="text-xl font-bold text-slate-800">คู่มือสำหรับผู้ดูแลระบบ (Admin)</h3>
+                  <p className="text-slate-500 text-sm mt-1">การบริหารจัดการโครงการและผู้ใช้งาน</p>
+                </div>
 
-          {/* TAB: STATUS */}
-          {activeTab === 'status' && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <h3 className="text-xl font-bold text-slate-800 border-b pb-3">ความหมายของสถานะต่างๆ</h3>
-              
-              <div className="overflow-hidden border rounded-lg">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">สถานะ</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ความหมาย / สิ่งที่ต้องทำ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-slate-200">
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">รอที่ปรึกษาอนุมัติ</span></td>
-                      <td className="px-6 py-4 text-sm text-slate-600">รออาจารย์ที่ปรึกษากดอนุมัติ (สำหรับ นศ.)</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">รอเจ้าหน้าที่ตรวจสอบ</span></td>
-                      <td className="px-6 py-4 text-sm text-slate-600">Admin กำลังตรวจสอบความครบถ้วนของเอกสาร</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">อยู่ระหว่างพิจารณา</span></td>
-                      <td className="px-6 py-4 text-sm text-slate-600">ส่งต่อให้กรรมการ (Reviewer) ทำการประเมิน</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">รอสรุปผล</span></td>
-                      <td className="px-6 py-4 text-sm text-slate-600">กรรมการพิจารณาครบแล้ว รอ Admin สรุปมติ</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">แก้ไขตามข้อเสนอแนะ</span></td>
-                      <td className="px-6 py-4 text-sm text-slate-600">ต้องแก้ไขเอกสารตามคอมเมนต์ และส่งกลับเข้าระบบใหม่</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">อนุมัติ/ได้รับใบรับรอง</span></td>
-                      <td className="px-6 py-4 text-sm text-slate-600">ผ่านการรับรองแล้ว สามารถดาวน์โหลดใบรับรองได้</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">ไม่อนุมัติ</span></td>
-                      <td className="px-6 py-4 text-sm text-slate-600">โครงการไม่ผ่านการพิจารณา</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                <div className="grid grid-cols-1 gap-4">
+                    <div className="p-4 border rounded-lg bg-slate-50 flex gap-4">
+                        <div className="font-bold text-2xl text-slate-300">01</div>
+                        <div>
+                            <h5 className="font-bold text-slate-800">Screening (ตรวจสอบเบื้องต้น)</h5>
+                            <p className="text-sm text-slate-600 mt-1">
+                                ตรวจสอบความครบถ้วนของเอกสาร หากไม่ครบให้กด <strong>"ส่งคืนให้ผู้วิจัยแก้ไข" (Return)</strong> พร้อมระบุเหตุผล
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="p-4 border rounded-lg bg-slate-50 flex gap-4">
+                        <div className="font-bold text-2xl text-slate-300">02</div>
+                        <div>
+                            <h5 className="font-bold text-slate-800">Reviewer Assignment (มอบหมายกรรมการ)</h5>
+                            <p className="text-sm text-slate-600 mt-1">
+                                เลือกกรรมการจากรายชื่อ ระบบจะแสดงภาระงาน (Workload) ของกรรมการแต่ละท่านเพื่อช่วยในการตัดสินใจ
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="p-4 border rounded-lg bg-slate-50 flex gap-4">
+                        <div className="font-bold text-2xl text-slate-300">03</div>
+                        <div>
+                            <h5 className="font-bold text-slate-800">Final Decision (สรุปผล)</h5>
+                            <p className="text-sm text-slate-600 mt-1">
+                                เมื่อกรรมการส่งผลครบ ให้รวบรวมข้อคิดเห็น (Consolidate Feedback) สร้างเป็นไฟล์ PDF เดียว แล้วแนบลิงก์ส่งให้นักวิจัย พร้อมเลือกมติ (Approve / Revision Required / Reject)
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="p-4 border rounded-lg bg-slate-50 flex gap-4">
+                        <div className="font-bold text-2xl text-slate-300">04</div>
+                        <div>
+                            <h5 className="font-bold text-slate-800">Certification (ออกใบรับรอง)</h5>
+                            <p className="text-sm text-slate-600 mt-1">
+                                กรณีอนุมัติ: ระบบจะให้กรอกข้อมูลใบรับรอง (เลขที่, วันที่, วันหมดอายุ) และแนบลิงก์ไฟล์ใบรับรองที่ลงนามแล้ว
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-6 border-t pt-6">
+                    <h4 className="font-bold text-slate-800 mb-3">การจัดการผู้ใช้งาน (User Management)</h4>
+                    <p className="text-sm text-slate-600 mb-2">เข้าเมนู "จัดการผู้ใช้งาน" เพื่อ:</p>
+                    <ul className="list-disc pl-5 text-sm text-slate-600">
+                        <li>เพิ่มผู้ใช้งานใหม่ (Add User)</li>
+                        <li>แก้ไขบทบาท (เช่น เพิ่มสิทธิ์ Reviewer ให้อาจารย์)</li>
+                        <li>รีเซ็ตรหัสผ่าน (Send Password Reset Email)</li>
+                        <li>ระงับการใช้งาน (Suspend)</li>
+                    </ul>
+                </div>
+             </div>
           )}
 
         </div>
@@ -281,9 +384,34 @@ const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
   );
 };
 
-// Helper for icon used in text
-const EyeIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block mx-1 text-slate-500"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-);
+// Helper Component for Workflow Step
+const WorkflowStep = ({ step, title, desc, role, color }: any) => {
+    const colorClasses: any = {
+        blue: "bg-blue-100 text-blue-800 border-blue-200",
+        orange: "bg-orange-100 text-orange-800 border-orange-200",
+        purple: "bg-purple-100 text-purple-800 border-purple-200",
+        indigo: "bg-indigo-100 text-indigo-800 border-indigo-200",
+        green: "bg-green-100 text-green-800 border-green-200",
+    };
+
+    return (
+        <div className="flex gap-4 items-start relative group">
+            <div className="flex flex-col items-center">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg z-10 border-2 shadow-sm ${colorClasses[color]} bg-white`}>
+                    {step}
+                </div>
+                {/* Connector Line */}
+                <div className="w-0.5 h-full bg-slate-200 absolute top-10 bottom-[-20px] group-last:hidden"></div>
+            </div>
+            <div className={`flex-1 p-4 rounded-xl border bg-white hover:shadow-md transition-shadow`}>
+                <div className="flex justify-between items-start mb-1">
+                    <h4 className="font-bold text-slate-800">{title}</h4>
+                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${colorClasses[color]}`}>{role}</span>
+                </div>
+                <p className="text-sm text-slate-600">{desc}</p>
+            </div>
+        </div>
+    );
+};
 
 export default UserManual;

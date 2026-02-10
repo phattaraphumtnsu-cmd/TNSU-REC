@@ -16,6 +16,8 @@ const UserManagement: React.FC = () => {
   
   // Add User Form State
   const [isAdding, setIsAdding] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
@@ -94,7 +96,11 @@ const UserManagement: React.FC = () => {
           }
           
           const updated = exists ? prev.roles.filter(r => r !== role) : [...prev.roles, role];
-          return { ...prev, roles: updated, role: getPrimaryRole(updated) };
+          
+          // Calculate new primary role based on priority
+          const newPrimaryRole = getPrimaryRole(updated);
+
+          return { ...prev, roles: updated, role: newPrimaryRole };
       });
   };
 
@@ -118,7 +124,11 @@ const UserManagement: React.FC = () => {
           }
 
           const updated = exists ? prev.roles.filter(r => r !== role) : [...prev.roles, role];
-          return { ...prev, roles: updated, role: getPrimaryRole(updated) };
+          
+          // Calculate new primary role based on priority
+          const newPrimaryRole = getPrimaryRole(updated);
+          
+          return { ...prev, roles: updated, role: newPrimaryRole };
       });
   };
 
@@ -129,6 +139,7 @@ const UserManagement: React.FC = () => {
         return;
     }
 
+    setIsSubmitting(true);
     try {
         const finalPassword = newUser.password || 'password123';
         
@@ -142,6 +153,8 @@ const UserManagement: React.FC = () => {
         setNewUser({ ...newUser, name: '', email: '', phoneNumber: '', password: '', roles: [Role.RESEARCHER], role: Role.RESEARCHER });
     } catch(err: any) {
         alert('เกิดข้อผิดพลาด: ' + err.message);
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -150,6 +163,7 @@ const UserManagement: React.FC = () => {
       if (!editingUser) return;
       if (editingUser.roles.length === 0) return alert('ต้องมีอย่างน้อย 1 บทบาท');
 
+      setIsSubmitting(true);
       try {
           await db.updateUser(editingUser.id, {
               name: editingUser.name,
@@ -164,6 +178,8 @@ const UserManagement: React.FC = () => {
           fetchUsers();
       } catch (err: any) {
           alert('เกิดข้อผิดพลาดในการอัปเดต: ' + err.message);
+      } finally {
+          setIsSubmitting(false);
       }
   };
 
@@ -171,7 +187,8 @@ const UserManagement: React.FC = () => {
     const matchRole = filterRole === 'ALL' || user.roles.includes(filterRole as Role);
     const matchCampus = filterCampus === 'ALL' || user.campus === filterCampus;
     const matchSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                        user.email.toLowerCase().includes(searchTerm.toLowerCase());
+                        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (user.phoneNumber && user.phoneNumber.includes(searchTerm));
     return matchRole && matchCampus && matchSearch;
   });
 
@@ -250,7 +267,14 @@ const UserManagement: React.FC = () => {
             </div>
             <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
                <button type="button" onClick={() => setIsAdding(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">ยกเลิก</button>
-               <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-2"><Check size={18} /> บันทึกข้อมูล</button>
+               <button 
+                type="submit" 
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-2 disabled:opacity-50"
+               >
+                {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} 
+                {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+               </button>
             </div>
           </form>
         </div>
@@ -314,7 +338,14 @@ const UserManagement: React.FC = () => {
                     </div>
                     <div className="md:col-span-2 flex justify-end gap-3 pt-4 mt-2">
                          <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 border rounded-lg text-slate-600">ยกเลิก</button>
-                         <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">บันทึกการเปลี่ยนแปลง</button>
+                         <button 
+                            type="submit" 
+                            disabled={isSubmitting}
+                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                         >
+                            {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                            บันทึกการเปลี่ยนแปลง
+                         </button>
                     </div>
                 </form>
             </div>
@@ -329,7 +360,7 @@ const UserManagement: React.FC = () => {
          </div>
          <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
             <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none md:w-48" value={filterCampus} onChange={e => setFilterCampus(e.target.value)}><option value="ALL">ทุกวิทยาเขต</option><optgroup label="วิทยาเขต">{CAMPUSES.map(c => <option key={c} value={c}>{c}</option>)}</optgroup><optgroup label="โรงเรียนกีฬา">{SCHOOLS.map(c => <option key={c} value={c}>{c}</option>)}</optgroup></select>
-            <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-2.5 text-slate-400" size={18} /><input type="text" placeholder="ค้นหาชื่อ หรืออีเมล..." className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg outline-none text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+            <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-2.5 text-slate-400" size={18} /><input type="text" placeholder="ค้นหาชื่อ หรือเบอร์โทร..." className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg outline-none text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
          </div>
       </div>
 
@@ -337,11 +368,17 @@ const UserManagement: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50 text-slate-500 text-sm font-medium uppercase tracking-wider">
-              <tr><th className="px-6 py-4 text-left">ผู้ใช้งาน</th><th className="px-6 py-4 text-left">บทบาท</th><th className="px-6 py-4 text-left">สังกัด</th><th className="px-6 py-4 text-right">จัดการ</th></tr>
+              <tr>
+                <th className="px-6 py-4 text-left">ผู้ใช้งาน</th>
+                <th className="px-6 py-4 text-left">เบอร์โทรศัพท์</th>
+                <th className="px-6 py-4 text-left">บทบาท</th>
+                <th className="px-6 py-4 text-left">สังกัด</th>
+                <th className="px-6 py-4 text-right">จัดการ</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredUsers.length === 0 ? (
-                <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400"><div className="flex flex-col items-center justify-center"><Filter size={32} className="text-slate-300 mb-2"/><p>ไม่พบข้อมูลผู้ใช้งานตามเงื่อนไข</p></div></td></tr>
+                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400"><div className="flex flex-col items-center justify-center"><Filter size={32} className="text-slate-300 mb-2"/><p>ไม่พบข้อมูลผู้ใช้งานตามเงื่อนไข</p></div></td></tr>
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
@@ -351,9 +388,17 @@ const UserManagement: React.FC = () => {
                             <div>
                                 <div className="font-medium text-slate-900">{user.name}</div>
                                 <div className="text-sm text-slate-500 flex items-center gap-1"><Mail size={12} /> {user.email}</div>
-                                {user.phoneNumber && <div className="text-sm text-slate-500 flex items-center gap-1"><Phone size={12} /> {user.phoneNumber}</div>}
                             </div>
                         </div>
+                    </td>
+                    <td className="px-6 py-4">
+                        {user.phoneNumber ? (
+                            <div className="flex items-center gap-2 text-slate-700 font-medium">
+                                <Phone size={14} className="text-slate-400"/> {user.phoneNumber}
+                            </div>
+                        ) : (
+                            <span className="text-slate-400 text-xs italic">- ไม่ระบุ -</span>
+                        )}
                     </td>
                     <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">

@@ -1,29 +1,28 @@
-
 import { 
   collection, 
   doc, 
   getDoc, 
   getDocs, 
   addDoc, 
-  setDoc,
+  setDoc, 
   updateDoc, 
   deleteDoc, 
   query, 
-  where,
-  writeBatch,
-  orderBy,
-  limit,
-  startAfter,
-  runTransaction
+  where, 
+  writeBatch, 
+  orderBy, 
+  limit, 
+  startAfter, 
+  runTransaction 
 } from 'firebase/firestore';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut, 
-  sendPasswordResetEmail,
-  updatePassword,
-  User as FirebaseUser,
-  getAuth
+  sendPasswordResetEmail, 
+  updatePassword, 
+  User as FirebaseUser, 
+  getAuth 
 } from 'firebase/auth';
 import { initializeApp, deleteApp, FirebaseApp } from 'firebase/app';
 import { auth, dbFirestore, firebaseConfig } from '../firebaseConfig';
@@ -719,31 +718,36 @@ class DatabaseService {
       }
   }
 
-  async checkExpiringCertificates() {
-      if (!this.currentUser || !this.currentUser.roles.includes(Role.ADMIN)) return;
+  async getExpiringProposals(days: number = 60): Promise<Proposal[]> {
+      try {
+          const q = query(collection(dbFirestore, 'proposals'), where('status', '==', ProposalStatus.APPROVED));
+          const snapshot = await getDocs(q);
+          
+          const today = new Date();
+          const expiring: Proposal[] = [];
 
-      const proposalsRef = collection(dbFirestore, 'proposals');
-      const q = query(proposalsRef, where('status', '==', ProposalStatus.APPROVED));
-      const snapshot = await getDocs(q);
-      
-      const today = new Date();
-      const warningThreshold = 30; 
-
-      snapshot.forEach(async (docSnap) => {
-          const p = docSnap.data() as Proposal;
-          const expiryString = p.approvalDetail?.expiryDate || '';
-          if (!expiryString) return;
-
-          const expiryDate = new Date(expiryString);
-          const diffTime = expiryDate.getTime() - today.getTime();
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-          if (diffDays > 0 && diffDays <= warningThreshold) {
-              if (p.researcherId) {
-                  // Alert logic
+          snapshot.forEach(doc => {
+              const p = { id: doc.id, ...doc.data() } as Proposal;
+              if (p.approvalDetail?.expiryDate) {
+                  const expDate = new Date(p.approvalDetail.expiryDate);
+                  const diffTime = expDate.getTime() - today.getTime();
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  
+                  if (diffDays >= 0 && diffDays <= days) {
+                      expiring.push(p);
+                  }
               }
-          }
-      });
+          });
+          
+          return expiring.sort((a, b) => (a.approvalDetail?.expiryDate || '').localeCompare(b.approvalDetail?.expiryDate || ''));
+      } catch (e) {
+          console.error("Failed to get expiring proposals", e);
+          return [];
+      }
+  }
+
+  async checkExpiringCertificates() {
+      // Logic for background check if needed, simplified here
   }
 }
 

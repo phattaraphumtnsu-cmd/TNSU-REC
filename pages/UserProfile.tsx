@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { CAMPUSES, FACULTIES, SCHOOLS, SurveyResponse } from '../types';
-import { Save, Lock, AlertCircle, CheckCircle, UserCircle, RotateCw, AlertTriangle, Phone } from 'lucide-react';
+import { Save, Lock, AlertCircle, CheckCircle, UserCircle, RotateCw, AlertTriangle, Phone, Star, BarChart3 } from 'lucide-react';
 
 const UserProfile: React.FC = () => {
   const user = db.currentUser;
@@ -152,6 +152,23 @@ const UserProfile: React.FC = () => {
     setScores(prev => ({...prev, [qIndex]: score}));
   }
 
+  // Helper to calculate summary for view mode
+  const getSummary = () => {
+      if (!surveyStatus) return null;
+      let sumSys = 0, sumProc = 0;
+      // Q1-4 System
+      for(let i=0; i<4; i++) sumSys += (surveyStatus.scores[i] || 0);
+      // Q5-8 Process
+      for(let i=4; i<8; i++) sumProc += (surveyStatus.scores[i] || 0);
+      
+      return {
+          sysAvg: (sumSys / 4).toFixed(1),
+          procAvg: (sumProc / 4).toFixed(1)
+      };
+  };
+
+  const summary = getSummary();
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
        <div className="flex space-x-4 border-b">
@@ -283,20 +300,56 @@ const UserProfile: React.FC = () => {
             <h3 className="text-lg font-bold mb-2">แบบประเมินความพึงพอใจ</h3>
             <p className="text-sm text-slate-500 mb-6">คำชี้แจง: โปรดระบุคะแนนความพึงพอใจ (5=มากที่สุด, 1=น้อยที่สุด)</p>
             
-            {/* Status Banner */}
+            {/* Status Banner & Result Display */}
             {surveyStatus && !isResubmitting ? (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-8 text-center animate-in fade-in zoom-in-95">
-                    <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full text-green-600 mb-3">
-                        <CheckCircle size={32} />
+                <div className="animate-in fade-in zoom-in-95">
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-6 text-center">
+                        <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full text-green-600 mb-3">
+                            <CheckCircle size={32} />
+                        </div>
+                        <h3 className="text-xl font-bold text-green-800 mb-1">ท่านได้ทำการประเมินเรียบร้อยแล้ว</h3>
+                        <p className="text-green-600 text-sm">ขอบคุณสำหรับข้อเสนอแนะเพื่อการปรับปรุงระบบ</p>
+                        <p className="text-slate-400 text-xs mt-2">เมื่อวันที่ {new Date(surveyStatus.submittedAt).toLocaleString('th-TH')}</p>
                     </div>
-                    <h3 className="text-xl font-bold text-green-800 mb-1">ท่านได้ทำการประเมินเรียบร้อยแล้ว</h3>
-                    <p className="text-green-600 text-sm mb-4">เมื่อวันที่ {new Date(surveyStatus.submittedAt).toLocaleString('th-TH')}</p>
-                    <button 
-                        onClick={() => setIsResubmitting(true)} 
-                        className="flex items-center gap-2 mx-auto text-blue-600 hover:text-blue-800 font-medium px-4 py-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-blue-100"
-                    >
-                        <RotateCw size={18} /> ทำแบบประเมินอีกครั้ง (แก้ไข)
-                    </button>
+
+                    {/* Result Summary */}
+                    {summary && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                            <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm">
+                                <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                    <BarChart3 size={18} className="text-blue-500"/> ด้านระบบสารสนเทศ
+                                </h4>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-3xl font-bold text-blue-600">{summary.sysAvg}</span>
+                                    <span className="text-sm text-slate-400">/ 5.0</span>
+                                </div>
+                                <div className="w-full bg-slate-100 rounded-full h-2.5">
+                                    <div className="bg-blue-500 h-2.5 rounded-full transition-all" style={{ width: `${(parseFloat(summary.sysAvg)/5)*100}%` }}></div>
+                                </div>
+                            </div>
+                            <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm">
+                                <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                    <BarChart3 size={18} className="text-green-500"/> ด้านกระบวนการ
+                                </h4>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-3xl font-bold text-green-600">{summary.procAvg}</span>
+                                    <span className="text-sm text-slate-400">/ 5.0</span>
+                                </div>
+                                <div className="w-full bg-slate-100 rounded-full h-2.5">
+                                    <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${(parseFloat(summary.procAvg)/5)*100}%` }}></div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="text-center">
+                        <button 
+                            onClick={() => setIsResubmitting(true)} 
+                            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium px-4 py-2 hover:bg-slate-50 rounded-lg transition-colors"
+                        >
+                            <RotateCw size={18} /> แก้ไขผลการประเมิน
+                        </button>
+                    </div>
                 </div>
             ) : (
                 <>

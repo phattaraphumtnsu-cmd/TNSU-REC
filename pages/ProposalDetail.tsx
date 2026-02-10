@@ -21,7 +21,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignSearch, setAssignSearch] = useState('');
 
-  // Action Loading State
+  // Action Loading State - Used to disable buttons
   const [actionLoading, setActionLoading] = useState(false);
 
   // Admin Assign State
@@ -194,13 +194,20 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
 
   const handleAdminReturnDocs = async () => {
     if (!adminPreFeedback.trim()) return alert('กรุณาระบุเหตุผลที่ส่งคืนแก้ไข (ข้อเสนอแนะ)');
-    await db.updateProposal(proposal.id, {
-        status: ProposalStatus.ADMIN_REJECTED,
-        adminFeedback: adminPreFeedback
-    });
-    setAdminPreFeedback('');
-    alert('ส่งคืนโครงการให้ผู้วิจัยแก้ไขเรียบร้อยแล้ว');
-    reloadProposal();
+    setActionLoading(true);
+    try {
+        await db.updateProposal(proposal.id, {
+            status: ProposalStatus.ADMIN_REJECTED,
+            adminFeedback: adminPreFeedback
+        });
+        setAdminPreFeedback('');
+        alert('ส่งคืนโครงการให้ผู้วิจัยแก้ไขเรียบร้อยแล้ว');
+        reloadProposal();
+    } catch (e: any) {
+        alert('Error: ' + e.message);
+    } finally {
+        setActionLoading(false);
+    }
   };
 
   const handleReviewerAccept = async (accepted: boolean) => {
@@ -223,51 +230,65 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   };
 
   const handleReviewerSubmit = async () => {
-    const newReview: Review = {
-      reviewerId: user.id,
-      reviewerName: user.name,
-      vote,
-      comment,
-      fileLink: reviewerLink,
-      reviewProcessLink: reviewProcessLink,
-      submittedAt: new Date().toISOString()
-    };
+    setActionLoading(true);
+    try {
+        const newReview: Review = {
+        reviewerId: user.id,
+        reviewerName: user.name,
+        vote,
+        comment,
+        fileLink: reviewerLink,
+        reviewProcessLink: reviewProcessLink,
+        submittedAt: new Date().toISOString()
+        };
 
-    await db.submitReview(proposal.id, newReview, proposal.reviews || [], proposal.titleTh);
-    
-    // Check for auto-status update logic locally or assume backend logic
-    const freshP = await db.getProposalById(proposal.id);
-    if (freshP && freshP.reviews.length === freshP.reviewers.length) {
-       await db.updateProposal(proposal.id, { status: ProposalStatus.PENDING_DECISION });
+        await db.submitReview(proposal.id, newReview, proposal.reviews || [], proposal.titleTh);
+        
+        // Check for auto-status update logic locally or assume backend logic
+        const freshP = await db.getProposalById(proposal.id);
+        if (freshP && freshP.reviews.length === freshP.reviewers.length) {
+        await db.updateProposal(proposal.id, { status: ProposalStatus.PENDING_DECISION });
+        }
+
+        alert('บันทึกผลการพิจารณาแล้ว');
+        reloadProposal();
+    } catch (e: any) {
+        alert('Error: ' + e.message);
+    } finally {
+        setActionLoading(false);
     }
-
-    alert('บันทึกผลการพิจารณาแล้ว');
-    reloadProposal();
   };
 
   const handleAdminFinalize = async () => {
-    const updates: Partial<Proposal> = {
-       consolidatedFeedback: adminFeedback,
-       consolidatedFileLink: adminFileLink
-    };
+    setActionLoading(true);
+    try {
+        const updates: Partial<Proposal> = {
+            consolidatedFeedback: adminFeedback,
+            consolidatedFileLink: adminFileLink
+        };
 
-    let alertMsg = '';
+        let alertMsg = '';
 
-    if (adminDecision === Vote.FIX) {
-       updates.status = ProposalStatus.REVISION_REQ;
-       alertMsg = 'บันทึกผล "ให้แก้ไข" เรียบร้อยแล้ว ระบบจะแจ้งผู้วิจัย';
-    } else if (adminDecision === Vote.REJECT) {
-       updates.status = ProposalStatus.REJECTED;
-       alertMsg = 'บันทึกผล "ไม่อนุมัติ" เรียบร้อยแล้ว';
-    } else {
-       // APPROVE case: Move to WAITING_CERT first to allow time for signing
-       updates.status = ProposalStatus.WAITING_CERT;
-       alertMsg = 'บันทึกผลอนุมัติเรียบร้อย (สถานะ: รอออกใบรับรอง) - กรุณาดำเนินการออกใบรับรองในขั้นตอนถัดไป';
+        if (adminDecision === Vote.FIX) {
+            updates.status = ProposalStatus.REVISION_REQ;
+            alertMsg = 'บันทึกผล "ให้แก้ไข" เรียบร้อยแล้ว ระบบจะแจ้งผู้วิจัย';
+        } else if (adminDecision === Vote.REJECT) {
+            updates.status = ProposalStatus.REJECTED;
+            alertMsg = 'บันทึกผล "ไม่อนุมัติ" เรียบร้อยแล้ว';
+        } else {
+            // APPROVE case: Move to WAITING_CERT first to allow time for signing
+            updates.status = ProposalStatus.WAITING_CERT;
+            alertMsg = 'บันทึกผลอนุมัติเรียบร้อย (สถานะ: รอออกใบรับรอง) - กรุณาดำเนินการออกใบรับรองในขั้นตอนถัดไป';
+        }
+        
+        await db.updateProposal(proposal.id, updates);
+        alert(alertMsg);
+        reloadProposal();
+    } catch (e: any) {
+        alert('Error: ' + e.message);
+    } finally {
+        setActionLoading(false);
     }
-    
-    await db.updateProposal(proposal.id, updates);
-    alert(alertMsg);
-    reloadProposal();
   };
 
   const handleAdminIssueCert = async () => {
@@ -275,23 +296,30 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
          if(!window.confirm("คุณไม่ได้ระบุลิงก์ใบรับรอง ยืนยันที่จะบันทึกโดยไม่มีลิงก์หรือไม่?")) return;
      }
 
-     // Admin confirms cert issuance with edited details
-     const updates: any = {
-        status: ProposalStatus.APPROVED,
-        approvalDetail: {
-            certificateNumber: certData.number, // Uses the edited number or auto-generated one if empty (handled by DB if undefined)
-            issuanceDate: certData.issueDate,
-            expiryDate: certData.expiryDate
-        },
-        certNumber: certData.number,
-        certLink: certData.link,
-        approvalDate: certData.issueDate,
-        nextReportDueDate: new Date(new Date(certData.issueDate).setMonth(new Date(certData.issueDate).getMonth() + 6)).toISOString().split('T')[0]
-     };
+     setActionLoading(true);
+     try {
+        // Admin confirms cert issuance with edited details
+        const updates: any = {
+            status: ProposalStatus.APPROVED,
+            approvalDetail: {
+                certificateNumber: certData.number, 
+                issuanceDate: certData.issueDate,
+                expiryDate: certData.expiryDate
+            },
+            certNumber: certData.number,
+            certLink: certData.link,
+            approvalDate: certData.issueDate,
+            nextReportDueDate: new Date(new Date(certData.issueDate).setMonth(new Date(certData.issueDate).getMonth() + 6)).toISOString().split('T')[0]
+        };
 
-     await db.updateProposal(proposal.id, updates);
-     alert('บันทึกข้อมูลใบรับรองและเปลี่ยนสถานะเป็น "อนุมัติ/ได้รับใบรับรอง" เรียบร้อยแล้ว');
-     reloadProposal();
+        await db.updateProposal(proposal.id, updates);
+        alert('บันทึกข้อมูลใบรับรองและเปลี่ยนสถานะเป็น "อนุมัติ/ได้รับใบรับรอง" เรียบร้อยแล้ว');
+        reloadProposal();
+     } catch (e: any) {
+        alert('Error: ' + e.message);
+     } finally {
+        setActionLoading(false);
+     }
   };
 
   const handleResearcherRevise = async () => {
@@ -300,28 +328,36 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
     
     if (!window.confirm('ยืนยันการส่งข้อมูลการแก้ไข?')) return;
 
-    await db.submitRevision(
-        proposal.id, 
-        revisionLink, 
-        revisionNoteLink, 
-        proposal.revisionHistory || [], 
-        proposal.revisionCount || 0,
-        proposal.titleTh,
-        feedbackToShow // Use the specific feedback (admin or committee) being addressed
-    );
-    alert('ส่งแก้ไขเรียบร้อย สถานะกลับสู่ "รอเจ้าหน้าที่ตรวจสอบ"');
-    reloadProposal();
+    setActionLoading(true);
+    try {
+        await db.submitRevision(
+            proposal.id, 
+            revisionLink, 
+            revisionNoteLink, 
+            proposal.revisionHistory || [], 
+            proposal.revisionCount || 0,
+            proposal.titleTh,
+            feedbackToShow // Use the specific feedback being addressed
+        );
+        alert('ส่งแก้ไขเรียบร้อย สถานะกลับสู่ "รอเจ้าหน้าที่ตรวจสอบ"');
+        reloadProposal();
+    } catch (e: any) {
+        alert('Error: ' + e.message);
+    } finally {
+        setActionLoading(false);
+    }
   };
 
   const handleResearcherWithdraw = async () => {
-      const reason = prompt("กรุณาระบุเหตุผลที่ต้องการถอนโครงการ:");
+      const reason = prompt("กรุณาระบุเหตุผลที่ต้องการถอนโครงการ (Withdrawal Reason):");
       if (reason === null) return; 
+      if (!reason.trim()) return alert("กรุณาระบุเหตุผล");
       
       if (window.confirm("คำเตือน: การถอนโครงการจะไม่สามารถย้อนกลับได้ คุณต้องการดำเนินการต่อหรือไม่?")) {
           setActionLoading(true);
           try {
               await db.withdrawProposal(proposal.id, reason);
-              alert("ถอนโครงการเรียบร้อยแล้ว");
+              alert("ถอนโครงการเรียบร้อยแล้ว สถานะเปลี่ยนเป็น 'ถอนโครงการ' (Withdrawn)");
               reloadProposal();
           } catch(e: any) {
               alert("Error: " + e.message);
@@ -346,27 +382,70 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
       }
   };
 
+  const handleAdminApproveRenewal = async () => {
+      if(!proposal) return;
+      if(!window.confirm("ยืนยันการต่ออายุใบรับรองไปอีก 1 ปี?\n(วันหมดอายุจะถูกขยายออกไป และสถานะจะกลับเป็น 'อนุมัติ')")) return;
+      
+      setActionLoading(true);
+      try {
+          const currentExpiry = new Date(proposal.approvalDetail?.expiryDate || new Date());
+          const newExpiry = new Date(currentExpiry);
+          newExpiry.setFullYear(newExpiry.getFullYear() + 1);
+          
+          const updates: any = {
+              status: ProposalStatus.APPROVED,
+              approvalDetail: {
+                  ...proposal.approvalDetail,
+                  expiryDate: newExpiry.toISOString().split('T')[0]
+              },
+              nextReportDueDate: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString().split('T')[0]
+          };
+          
+          await db.updateProposal(proposal.id, updates);
+          alert("อนุมัติการต่ออายุใบรับรองเรียบร้อยแล้ว");
+          reloadProposal();
+      } catch(e: any) {
+          alert("Error: " + e.message);
+      } finally {
+          setActionLoading(false);
+      }
+  };
+
   const handleSubmitProgressReport = async () => {
      if (!reportLink) return alert('กรุณาใส่ลิงก์ไฟล์รายงาน');
-     await db.submitProgressReport(
-        proposal.id, 
-        {
-            type: reportType,
-            fileLink: reportLink,
-            description: reportDesc
-        },
-        proposal.progressReports || [],
-        proposal.titleTh
-     );
-     setReportLink('');
-     setReportDesc('');
-     alert('ส่งรายงานเรียบร้อย เจ้าหน้าที่จะทำการตรวจสอบ');
-     reloadProposal();
+     setActionLoading(true);
+     try {
+        await db.submitProgressReport(
+            proposal.id, 
+            {
+                type: reportType,
+                fileLink: reportLink,
+                description: reportDesc
+            },
+            proposal.progressReports || [],
+            proposal.titleTh
+        );
+        setReportLink('');
+        setReportDesc('');
+        alert('ส่งรายงานเรียบร้อย เจ้าหน้าที่จะทำการตรวจสอบ');
+        reloadProposal();
+     } catch (e: any) {
+        alert('Error: ' + e.message);
+     } finally {
+        setActionLoading(false);
+     }
   };
 
   const handleAdminAcknowledgeReport = async (reportId: string) => {
-     await db.acknowledgeProgressReport(proposal.id, reportId, user.name, proposal.progressReports);
-     reloadProposal();
+     setActionLoading(true);
+     try {
+         await db.acknowledgeProgressReport(proposal.id, reportId, user.name, proposal.progressReports);
+         reloadProposal();
+     } catch(e: any) {
+         console.error(e);
+     } finally {
+         setActionLoading(false);
+     }
   };
 
   const renderStatusBadge = () => {
@@ -420,6 +499,18 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
         {proposal.status === ProposalStatus.APPROVED && (
            <div className="flex flex-col items-end gap-2">
              <div className="flex gap-2">
+                {/* Renewal Button */}
+                {hasPermission(user.roles, Permission.REQUEST_RENEWAL) && user.id === proposal.researcherId && (
+                     <button 
+                        onClick={handleResearcherRenew} 
+                        disabled={actionLoading}
+                        className="bg-white text-blue-600 border border-blue-200 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-50 shadow-sm transition-transform active:scale-95 text-sm font-medium disabled:opacity-50"
+                     >
+                        {actionLoading ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+                        ขอต่ออายุใบรับรอง (Renew)
+                     </button>
+                )}
+
                 {proposal.certLink ? (
                     <a href={proposal.certLink} target="_blank" rel="noreferrer" className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 shadow-sm transition-transform active:scale-95 text-sm">
                         <Award size={18} /> ดาวน์โหลดใบรับรอง (E-Certificate)
@@ -552,9 +643,11 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                      <div className="md:col-span-2 flex justify-end mt-2">
                          <button 
                             onClick={handleAdminIssueCert}
-                            className="bg-teal-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-teal-700 shadow-sm transition-all active:scale-95 flex items-center gap-2"
+                            disabled={actionLoading}
+                            className="bg-teal-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-teal-700 shadow-sm transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
                          >
-                            <CheckCircle size={18} /> บันทึกข้อมูลใบรับรอง
+                            {actionLoading ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />} 
+                            บันทึกข้อมูลใบรับรอง
                          </button>
                      </div>
                 </div>
@@ -580,21 +673,16 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
              <div className="flex justify-between items-start mb-4 border-b pb-2">
                 <h3 className="font-semibold text-lg text-slate-800">รายละเอียดโครงการ</h3>
                 <div className="flex gap-2">
-                    {/* Researcher Actions: Withdraw & Renew */}
+                    {/* Researcher Actions: Withdraw */}
                     {hasPermission(user.roles, Permission.WITHDRAW_PROPOSAL) && 
                         user.id === proposal.researcherId && 
-                        proposal.status !== ProposalStatus.APPROVED && 
-                        proposal.status !== ProposalStatus.REJECTED && 
-                        proposal.status !== ProposalStatus.WITHDRAWN && (
-                        <button onClick={handleResearcherWithdraw} className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                            <Trash2 size={12} /> ถอนโครงการ
-                        </button>
-                    )}
-                    
-                    {hasPermission(user.roles, Permission.REQUEST_RENEWAL) && 
-                        proposal.status === ProposalStatus.APPROVED && (
-                        <button onClick={handleResearcherRenew} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                            <RefreshCw size={12} /> ขอต่ออายุใบรับรอง
+                        ![ProposalStatus.APPROVED, ProposalStatus.REJECTED, ProposalStatus.WITHDRAWN].includes(proposal.status) && (
+                        <button 
+                            onClick={handleResearcherWithdraw} 
+                            disabled={actionLoading}
+                            className="text-xs text-red-600 hover:text-red-700 bg-white border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+                        >
+                            {actionLoading ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14} />} ถอนโครงการ (Withdraw)
                         </button>
                     )}
                 </div>
@@ -681,22 +769,37 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                     </h4>
                     <div className="space-y-3">
                        {proposal.revisionHistory.map((rev, idx) => (
-                          <div key={idx} className="text-sm bg-slate-50 p-3 rounded border border-slate-100 flex justify-between items-center">
-                             <div>
-                                <span className="font-medium text-slate-800 mr-2">ครั้งที่ {rev.revisionCount}</span>
-                                <span className="text-slate-500 text-xs">
-                                   เมื่อ {new Date(rev.submittedDate).toLocaleString('th-TH', { 
+                          <div key={idx} className="text-sm bg-slate-50 p-3 rounded border border-slate-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                             <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-slate-700">ครั้งที่ {rev.revisionCount}</span>
+                                    {rev.adminFeedbackSnapshot && (
+                                        <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded border border-red-200" title={rev.adminFeedbackSnapshot}>
+                                            แก้ไขตามข้อเสนอแนะ
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="text-slate-500 text-xs flex items-center gap-1 mt-0.5">
+                                   <Clock size={10} /> 
+                                   ส่งเมื่อ: {new Date(rev.submittedDate).toLocaleString('th-TH', { 
                                      year: 'numeric', 
                                      month: 'short', 
                                      day: 'numeric',
                                      hour: '2-digit',
-                                     minute: '2-digit'
+                                     minute: '2-digit',
+                                     second: '2-digit'
                                    })}
                                 </span>
                              </div>
-                             <div className="flex gap-2">
-                                <a href={rev.fileLink} target="_blank" className="text-blue-600 hover:underline text-xs bg-white px-2 py-1 rounded border">ไฟล์แนบ</a>
-                                {rev.noteLink && <a href={rev.noteLink} target="_blank" className="text-slate-600 hover:underline text-xs bg-white px-2 py-1 rounded border">บันทึก</a>}
+                             <div className="flex gap-2 mt-2 sm:mt-0">
+                                <a href={rev.fileLink} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline text-xs bg-white px-2 py-1.5 rounded border hover:bg-blue-50 transition-colors">
+                                    <FileText size={12}/> ไฟล์แนบ
+                                </a>
+                                {rev.noteLink && (
+                                    <a href={rev.noteLink} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-slate-600 hover:underline text-xs bg-white px-2 py-1.5 rounded border hover:bg-slate-50 transition-colors">
+                                        <MessageSquare size={12}/> บันทึกชี้แจง
+                                    </a>
+                                )}
                              </div>
                           </div>
                        ))}
@@ -900,13 +1003,14 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
 
                                <button 
                                   onClick={handleResearcherRevise} 
-                                  disabled={!confirmRevise}
+                                  disabled={!confirmRevise || actionLoading}
                                   className={`w-full py-3.5 rounded-lg font-bold shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 
                                     ${confirmRevise 
                                       ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg' 
                                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                                >
-                                  <Send size={20} /> ยืนยันส่งข้อมูลการแก้ไข
+                                  {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                                  {actionLoading ? 'กำลังส่งข้อมูล...' : 'ยืนยันส่งข้อมูลการแก้ไข'}
                                </button>
                             </div>
                          </div>
@@ -951,7 +1055,9 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                                      </div>
                                   ) : (
                                      hasPermission(user.roles, Permission.ACKNOWLEDGE_PROGRESS_REPORT) ? (
-                                        <button onClick={() => handleAdminAcknowledgeReport(report.id)} className="bg-blue-600 text-white text-xs px-3 py-2 rounded hover:bg-blue-700 transition-colors">กดรับทราบรายงาน</button>
+                                        <button onClick={() => handleAdminAcknowledgeReport(report.id)} disabled={actionLoading} className="bg-blue-600 text-white text-xs px-3 py-2 rounded hover:bg-blue-700 transition-colors disabled:opacity-50">
+                                            {actionLoading ? '...' : 'กดรับทราบรายงาน'}
+                                        </button>
                                      ) : (
                                         <span className="text-orange-500 text-xs bg-orange-50 px-2 py-1 rounded">รอเจ้าหน้าที่ตรวจสอบ</span>
                                      )
@@ -980,7 +1086,16 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                             </div>
                          </div>
                          <div className="mb-3"><label className="block text-xs font-medium text-slate-500 mb-1">รายละเอียดเพิ่มเติม</label><textarea className="w-full text-sm border p-2 rounded" rows={2} value={reportDesc} onChange={e => setReportDesc(e.target.value)}></textarea></div>
-                         <div className="flex justify-end"><button onClick={handleSubmitProgressReport} className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 font-medium">ยืนยันส่งรายงาน</button></div>
+                         <div className="flex justify-end">
+                            <button 
+                                onClick={handleSubmitProgressReport} 
+                                disabled={actionLoading}
+                                className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 font-medium flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {actionLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                                ยืนยันส่งรายงาน
+                            </button>
+                         </div>
                       </div>
                    )}
                 </div>
@@ -1055,9 +1170,10 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                         </div>
                         <button 
                             onClick={handleAdminAssign}
-                            disabled={selectedReviewers.length === 0}
-                            className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            disabled={selectedReviewers.length === 0 || actionLoading}
+                            className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex justify-center items-center gap-2"
                         >
+                            {actionLoading && <Loader2 size={16} className="animate-spin" />}
                             ยืนยันมอบหมาย
                         </button>
 
@@ -1072,9 +1188,10 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                             />
                             <button 
                                 onClick={handleAdminReturnDocs}
-                                disabled={!adminPreFeedback}
-                                className="w-full mt-2 bg-white border border-red-200 text-red-600 py-2 rounded-lg font-medium hover:bg-red-50 disabled:opacity-50 transition-colors"
+                                disabled={!adminPreFeedback || actionLoading}
+                                className="w-full mt-2 bg-white border border-red-200 text-red-600 py-2 rounded-lg font-medium hover:bg-red-50 disabled:opacity-50 transition-colors flex justify-center items-center gap-2"
                             >
+                                {actionLoading && <Loader2 size={16} className="animate-spin" />}
                                 ส่งคืนให้ผู้วิจัยแก้ไข
                             </button>
                         </div>
@@ -1136,9 +1253,38 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
 
                         <button 
                             onClick={handleAdminFinalize}
-                            className="w-full bg-purple-600 text-white py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-sm"
+                            disabled={actionLoading}
+                            className="w-full bg-purple-600 text-white py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                         >
+                            {actionLoading ? <Loader2 size={16} className="animate-spin" /> : null}
                             บันทึกผลการพิจารณา
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Admin Renewal Management */}
+            {hasPermission(user.roles, Permission.ISSUE_CERTIFICATE) && proposal.status === ProposalStatus.RENEWAL_REQUESTED && (
+                <div className="bg-white rounded-xl shadow-sm border border-cyan-200 overflow-hidden">
+                    <div className="bg-cyan-50 px-4 py-3 border-b border-cyan-100 flex items-center gap-2">
+                        <RefreshCw className="text-cyan-600" size={20} />
+                        <h3 className="font-bold text-cyan-800">คำร้องขอต่ออายุ (Renewal Request)</h3>
+                    </div>
+                    <div className="p-4 space-y-4">
+                        <p className="text-sm text-slate-600">
+                            ผู้วิจัยได้ยื่นขอต่ออายุใบรับรอง ท่านสามารถพิจารณาอนุมัติเพื่อขยายเวลาวันหมดอายุไปอีก 1 ปี
+                        </p>
+                        <div className="bg-slate-50 p-3 rounded border text-sm">
+                            <span className="text-slate-500 block">วันหมดอายุปัจจุบัน:</span>
+                            <span className="font-bold">{proposal.approvalDetail?.expiryDate || '-'}</span>
+                        </div>
+                        <button 
+                            onClick={handleAdminApproveRenewal}
+                            disabled={actionLoading}
+                            className="w-full bg-cyan-600 text-white py-2 rounded-lg font-medium hover:bg-cyan-700 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={18}/>}
+                            อนุมัติการต่ออายุ (+1 ปี)
                         </button>
                     </div>
                 </div>
@@ -1161,16 +1307,16 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                                     <button 
                                         onClick={() => handleReviewerAccept(true)}
                                         disabled={actionLoading}
-                                        className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+                                        className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50 flex items-center gap-1"
                                     >
-                                        ตอบรับ (Accept)
+                                        {actionLoading ? <Loader2 size={14} className="animate-spin"/> : null} ตอบรับ
                                     </button>
                                     <button 
                                         onClick={() => handleReviewerAccept(false)}
                                         disabled={actionLoading}
-                                        className="bg-white text-red-600 border border-red-200 px-4 py-2 rounded text-sm hover:bg-red-50 disabled:opacity-50"
+                                        className="bg-white text-red-600 border border-red-200 px-4 py-2 rounded text-sm hover:bg-red-50 disabled:opacity-50 flex items-center gap-1"
                                     >
-                                        ปฏิเสธ (Decline)
+                                        {actionLoading ? <Loader2 size={14} className="animate-spin"/> : null} ปฏิเสธ
                                     </button>
                                 </div>
                             </div>
@@ -1231,8 +1377,10 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
 
                                 <button 
                                     onClick={handleReviewerSubmit}
-                                    className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+                                    disabled={actionLoading}
+                                    className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
+                                    {actionLoading ? <Loader2 size={16} className="animate-spin"/> : null}
                                     ส่งผลการพิจารณา
                                 </button>
                             </div>
@@ -1251,9 +1399,11 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                      <div className="p-4">
                         <button 
                             onClick={handleAdminResetStatus}
-                            className="w-full bg-white border border-slate-300 text-slate-600 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 hover:text-red-600 hover:border-red-300 transition-colors flex items-center justify-center gap-2"
+                            disabled={actionLoading}
+                            className="w-full bg-white border border-slate-300 text-slate-600 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 hover:text-red-600 hover:border-red-300 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                         >
-                            <RotateCcw size={16} /> รีเซ็ตสถานะเป็น "รอตรวจสอบ"
+                            {actionLoading ? <Loader2 size={16} className="animate-spin"/> : <RotateCcw size={16} />} 
+                            รีเซ็ตสถานะเป็น "รอตรวจสอบ"
                         </button>
                         <p className="text-xs text-slate-400 mt-2 text-center">
                             ใช้กรณีเกิดข้อผิดพลาดในการเปลี่ยนสถานะ (ข้อมูลโครงการจะไม่หาย)

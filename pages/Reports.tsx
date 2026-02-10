@@ -1,10 +1,9 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { db } from '../services/database';
 import { ProposalStatus, FACULTIES, Proposal, Role, AuditLog, SurveyResponse } from '../types';
-import { Loader2, ShieldAlert, History, AlertTriangle, User, MessageSquare } from 'lucide-react';
+import { Loader2, ShieldAlert, History, AlertTriangle, User, MessageSquare, BarChart3 } from 'lucide-react';
 
 const Reports: React.FC = () => {
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -57,25 +56,44 @@ const Reports: React.FC = () => {
 
   // Survey Calculations
   const calcAverage = () => {
-     if (surveys.length === 0) return { sys: 0, process: 0, overall: 0 };
+     if (surveys.length === 0) return { sys: 0, process: 0, overall: 0, chartData: [] };
      
      let sumSys = 0; // Q1-4
      let sumProc = 0; // Q5-8
      let totalCount = surveys.length;
+     
+     const questionSums = Array(8).fill(0);
 
      surveys.forEach(s => {
         // System scores (indices 0-3)
-        for(let i=0; i<4; i++) sumSys += (s.scores[i] || 0);
+        for(let i=0; i<4; i++) {
+            const sc = (s.scores[i] || 0);
+            sumSys += sc;
+            questionSums[i] += sc;
+        }
         // Process scores (indices 4-7)
-        for(let i=4; i<8; i++) sumProc += (s.scores[i] || 0);
+        for(let i=4; i<8; i++) {
+            const sc = (s.scores[i] || 0);
+            sumProc += sc;
+            questionSums[i] += sc;
+        }
      });
 
      const avgSys = sumSys / (totalCount * 4);
      const avgProc = sumProc / (totalCount * 4);
+     
+     // Create data for Bar Chart
+     const chartData = questionSums.map((sum, index) => ({
+         name: `Q${index + 1}`,
+         score: parseFloat((sum / totalCount).toFixed(2)),
+         full: index < 4 ? 'ด้านระบบ' : 'ด้านกระบวนการ'
+     }));
+
      return {
         sys: parseFloat(avgSys.toFixed(2)),
         process: parseFloat(avgProc.toFixed(2)),
-        overall: parseFloat(((avgSys + avgProc) / 2).toFixed(2))
+        overall: parseFloat(((avgSys + avgProc) / 2).toFixed(2)),
+        chartData
      };
   };
 
@@ -83,7 +101,7 @@ const Reports: React.FC = () => {
   const urgentSuggestions = surveys.filter(s => s.urgentSuggestion && s.urgentSuggestion.trim() !== '');
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-10">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-slate-800">รายงานสถิติ (TNSU-REC)</h2>
         <button className="bg-slate-800 text-white px-4 py-2 rounded hover:bg-slate-700 text-sm">
@@ -149,16 +167,43 @@ const Reports: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center mb-8">
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
                     <div className="text-3xl font-bold text-blue-700">{surveyStats.sys}/5</div>
-                    <div className="text-sm text-blue-600 font-medium mt-1">ด้านระบบสารสนเทศ</div>
+                    <div className="text-sm text-blue-600 font-medium mt-1">ด้านระบบสารสนเทศ (Q1-4)</div>
                 </div>
                 <div className="p-4 bg-green-50 rounded-lg border border-green-100">
                     <div className="text-3xl font-bold text-green-700">{surveyStats.process}/5</div>
-                    <div className="text-sm text-green-600 font-medium mt-1">ด้านกระบวนการ</div>
+                    <div className="text-sm text-green-600 font-medium mt-1">ด้านกระบวนการ (Q5-8)</div>
                 </div>
                 <div className="p-4 bg-purple-50 rounded-lg border border-purple-100 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-2 opacity-10"><User size={48} /></div>
                     <div className="text-3xl font-bold text-purple-700">{surveyStats.overall}/5</div>
                     <div className="text-sm text-purple-600 font-medium mt-1">ภาพรวมความพึงพอใจ</div>
+                </div>
+            </div>
+
+            {/* Satisfaction Chart */}
+            <div className="mb-8">
+                <h4 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                    <BarChart3 size={18} /> กราฟแสดงคะแนนเฉลี่ยรายข้อ (Q1 - Q8)
+                </h4>
+                <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={surveyStats.chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" />
+                            <YAxis domain={[0, 5]} />
+                            <Tooltip formatter={(value) => [`${value} คะแนน`, 'เฉลี่ย']} />
+                            <Legend />
+                            <Bar dataKey="score" name="คะแนนเฉลี่ย" fill="#6366f1" radius={[4, 4, 0, 0]}>
+                                {surveyStats.chartData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={index < 4 ? '#3b82f6' : '#22c55e'} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+                <div className="flex gap-4 justify-center mt-2 text-xs text-slate-500">
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 bg-blue-500 rounded"></div> Q1-Q4: ด้านระบบ</div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 bg-green-500 rounded"></div> Q5-Q8: ด้านกระบวนการ</div>
                 </div>
             </div>
 
