@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { ProposalStatus, ReviewType, Role, UserType, User } from '../types';
-import { ArrowLeft, Loader2, Link as LinkIcon, Info, AlertCircle, UserCheck, Wallet, Search } from 'lucide-react';
+import { ArrowLeft, Loader2, Link as LinkIcon, Info, AlertCircle, UserCheck, Wallet, Search, CheckCircle, X } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
 
 interface SubmissionFormProps {
@@ -102,6 +102,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
     a.email.toLowerCase().includes(advisorSearch.toLowerCase()) ||
     (a.faculty && a.faculty.toLowerCase().includes(advisorSearch.toLowerCase()))
   );
+  
+  const selectedAdvisor = advisors.find(a => a.id === formData.advisorId);
 
   return (
     <div className="max-w-4xl mx-auto pb-12">
@@ -175,7 +177,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
 
           <hr className="border-slate-100" />
 
-          {/* Section 2: Advisor Selection (Student Only) - IMPROVED */}
+          {/* Section 2: Advisor Selection (Student Only) - IMPROVED CUSTOM LIST */}
           {isStudent && (
             <>
               <div>
@@ -188,47 +190,75 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                          <UserCheck className="text-yellow-600 flex-shrink-0" size={20} />
                          <div className="text-sm text-yellow-800">
                             <strong>สำหรับนักศึกษา:</strong> ท่านต้องเลือกอาจารย์ที่ปรึกษาเพื่อทำการอนุมัติโครงการเบื้องต้น
-                            <br/>
-                            <span className="text-xs text-yellow-700 opacity-80">* กรุณาค้นหาและเลือกชื่ออาจารย์ให้ถูกต้อง (สังเกต ชื่อ-คณะ และอีเมล)</span>
                          </div>
                     </div>
                     
-                    <div className="mb-4">
-                       <label className="block text-sm font-medium text-slate-700 mb-1">ค้นหารายชื่ออาจารย์</label>
-                       <div className="relative">
-                          <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-                          <input 
-                             type="text" 
-                             className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                             placeholder="พิมพ์ชื่อ หรือ อีเมล เพื่อค้นหา..."
-                             value={advisorSearch}
-                             onChange={(e) => setAdvisorSearch(e.target.value)}
-                          />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">ค้นหาและเลือกอาจารย์ที่ปรึกษา <span className="text-red-500">*</span></label>
+                    
+                    {/* Selected State Display */}
+                    {selectedAdvisor && (
+                       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center animate-in fade-in slide-in-from-top-2">
+                          <div>
+                             <div className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                                <CheckCircle size={16} className="text-blue-600"/> ท่านเลือก: {selectedAdvisor.name}
+                             </div>
+                             <div className="text-xs text-blue-700 pl-6">
+                                {selectedAdvisor.faculty || 'ไม่ระบุคณะ'} | {selectedAdvisor.email}
+                             </div>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => setFormData({...formData, advisorId: ''})}
+                            className="text-slate-400 hover:text-red-500 p-2"
+                          >
+                             <X size={18} />
+                          </button>
                        </div>
-                    </div>
+                    )}
 
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">อาจารย์ที่ปรึกษา <span className="text-red-500">*</span></label>
-                      <select className="w-full border-slate-300 rounded-lg p-2.5 border outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                         required
-                         size={5} // Listbox style for better visibility
-                         value={formData.advisorId} 
-                         onChange={e => setFormData({...formData, advisorId: e.target.value})}
-                      >
-                         {filteredAdvisors.length > 0 ? (
-                            filteredAdvisors.map(a => (
-                               <option key={a.id} value={a.id} className="py-1 px-2 border-b border-slate-50 hover:bg-blue-50 cursor-pointer">
-                                  {a.name} | {a.faculty || 'ไม่ระบุคณะ'} | {a.email}
-                               </option>
-                            ))
-                         ) : (
-                            <option disabled>ไม่พบรายชื่ออาจารย์ที่ตรงกับคำค้นหา</option>
-                         )}
-                      </select>
-                      <p className="text-xs text-slate-500 mt-2">
-                         * พบอาจารย์ทั้งหมด {advisors.length} ท่าน (แสดง {filteredAdvisors.length} ท่านที่ตรงกับคำค้นหา)
-                      </p>
-                    </div>
+                    {/* Search & List */}
+                    {!selectedAdvisor && (
+                        <div className="border border-slate-300 rounded-lg overflow-hidden bg-white">
+                           {/* Search Input */}
+                           <div className="relative border-b border-slate-100">
+                              <Search className="absolute left-3 top-3 text-slate-400" size={18} />
+                              <input 
+                                 type="text" 
+                                 className="w-full pl-10 pr-4 py-3 text-sm outline-none focus:bg-slate-50 transition-colors"
+                                 placeholder="พิมพ์ชื่อ, คณะ หรืออีเมล เพื่อค้นหา..."
+                                 value={advisorSearch}
+                                 onChange={(e) => setAdvisorSearch(e.target.value)}
+                              />
+                           </div>
+                           
+                           {/* Scrollable List */}
+                           <div className="max-h-60 overflow-y-auto bg-slate-50/30">
+                              {filteredAdvisors.length > 0 ? (
+                                 filteredAdvisors.map(a => (
+                                    <div 
+                                       key={a.id} 
+                                       onClick={() => setFormData({...formData, advisorId: a.id})}
+                                       className="p-3 border-b border-slate-100 last:border-0 hover:bg-blue-50 cursor-pointer transition-colors flex justify-between items-center group"
+                                    >
+                                       <div>
+                                          <div className="font-medium text-slate-800 text-sm group-hover:text-blue-700">{a.name}</div>
+                                          <div className="text-xs text-slate-500">{a.faculty || 'ไม่ระบุคณะ'} • {a.email}</div>
+                                       </div>
+                                       {/* Helper text on hover */}
+                                       <span className="text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">เลือก</span>
+                                    </div>
+                                 ))
+                              ) : (
+                                 <div className="p-8 text-center text-slate-400 text-sm">
+                                    ไม่พบรายชื่อที่ตรงกับ "{advisorSearch}"
+                                 </div>
+                              )}
+                           </div>
+                           <div className="bg-slate-100 p-2 text-center text-xs text-slate-500 border-t border-slate-200">
+                              แสดงรายชื่อ {filteredAdvisors.length} ท่าน (จากทั้งหมด {advisors.length})
+                           </div>
+                        </div>
+                    )}
                 </div>
               </div>
               <hr className="border-slate-100" />
