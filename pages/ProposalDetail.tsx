@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
-import { Proposal, ProposalStatus, Role, Vote, Review, User, ReviewType, ReportType, Permission, hasPermission } from '../types';
-import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users, PenTool, X, Award, UserCheck, Gavel } from 'lucide-react';
+import { Proposal, ProposalStatus, Role, Vote, Review, User, ReviewType, ReportType, Permission, hasPermission, ReviewerStatus } from '../types';
+import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users, PenTool, X, Award, UserCheck, Gavel, Search, Briefcase, RotateCcw, Shield, Trash2, RefreshCw } from 'lucide-react';
 
 interface ProposalDetailProps {
   id: string;
@@ -14,7 +14,12 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   
   const [proposal, setProposal] = useState<Proposal | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  
+  // Reviewer selection states
   const [reviewersList, setReviewersList] = useState<User[]>([]);
+  const [reviewerWorkload, setReviewerWorkload] = useState<Record<string, number>>({});
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignSearch, setAssignSearch] = useState('');
 
   // Action Loading State
   const [actionLoading, setActionLoading] = useState(false);
@@ -68,8 +73,13 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
             
             // If user is Admin, fetch reviewers list for assignment
             if (user?.roles.includes(Role.ADMIN)) {
-                const rList = await db.getUsersByRole(Role.REVIEWER);
+                // Fetch list and workload
+                const [rList, workload] = await Promise.all([
+                    db.getUsersByRole(Role.REVIEWER),
+                    db.getReviewerWorkload()
+                ]);
                 setReviewersList(rList);
+                setReviewerWorkload(workload);
             }
             
             // Init cert data if waiting
@@ -152,9 +162,34 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
 
   const handleAdminAssign = async () => {
     if (selectedReviewers.length === 0) return alert('เลือกกรรมการอย่างน้อย 1 ท่าน');
-    await db.assignReviewers(proposal.id, selectedReviewers, proposal.titleTh);
-    alert('มอบหมายกรรมการเรียบร้อย');
-    reloadProposal();
+    setActionLoading(true);
+    try {
+        await db.assignReviewers(proposal.id, selectedReviewers, proposal.titleTh);
+        alert('มอบหมายกรรมการเรียบร้อย (ระบบรอการตอบรับจากกรรมการ)');
+        setShowAssignModal(false);
+        reloadProposal();
+    } catch (e: any) {
+        alert('Error: ' + e.message);
+    } finally {
+        setActionLoading(false);
+    }
+  };
+
+  const handleAdminResetStatus = async () => {
+      if(!window.confirm("คำเตือน: การรีเซ็ตสถานะจะเปลี่ยนสถานะกลับเป็น 'รอเจ้าหน้าที่ตรวจสอบ' (Pending Admin Check)\n\nใช้ในกรณีที่เกิดข้อผิดพลาดในการเปลี่ยนสถานะ หรือต้องการเริ่มกระบวนการตรวจสอบใหม่ ยืนยันหรือไม่?")) return;
+      
+      setActionLoading(true);
+      try {
+          await db.updateProposal(proposal.id, {
+              status: ProposalStatus.PENDING_ADMIN_CHECK,
+          });
+          alert('รีเซ็ตสถานะโครงการเรียบร้อยแล้ว');
+          await reloadProposal();
+      } catch (e: any) {
+          alert('Error: ' + e.message);
+      } finally {
+          setActionLoading(false);
+      }
   };
 
   const handleAdminReturnDocs = async () => {
@@ -166,6 +201,25 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
     setAdminPreFeedback('');
     alert('ส่งคืนโครงการให้ผู้วิจัยแก้ไขเรียบร้อยแล้ว');
     reloadProposal();
+  };
+
+  const handleReviewerAccept = async (accepted: boolean) => {
+      setActionLoading(true);
+      try {
+          const status = accepted ? ReviewerStatus.ACCEPTED : ReviewerStatus.DECLINED;
+          await db.updateReviewerStatus(proposal.id, user.id, status, proposal.reviewerStates || {});
+          
+          if (!accepted) {
+              alert('ท่านได้ปฏิเสธการพิจารณาโครงการนี้ (ระบบจะแจ้ง Admin ทราบ)');
+          } else {
+              alert('ท่านได้ตอบรับการพิจารณาแล้ว');
+          }
+          await reloadProposal();
+      } catch (e: any) {
+          alert('Error: ' + e.message);
+      } finally {
+          setActionLoading(false);
+      }
   };
 
   const handleReviewerSubmit = async () => {
@@ -259,6 +313,39 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
     reloadProposal();
   };
 
+  const handleResearcherWithdraw = async () => {
+      const reason = prompt("กรุณาระบุเหตุผลที่ต้องการถอนโครงการ:");
+      if (reason === null) return; 
+      
+      if (window.confirm("คำเตือน: การถอนโครงการจะไม่สามารถย้อนกลับได้ คุณต้องการดำเนินการต่อหรือไม่?")) {
+          setActionLoading(true);
+          try {
+              await db.withdrawProposal(proposal.id, reason);
+              alert("ถอนโครงการเรียบร้อยแล้ว");
+              reloadProposal();
+          } catch(e: any) {
+              alert("Error: " + e.message);
+          } finally {
+              setActionLoading(false);
+          }
+      }
+  };
+
+  const handleResearcherRenew = async () => {
+      if (window.confirm("ยืนยันการขอยื่นต่ออายุใบรับรอง (Renewal)?")) {
+          setActionLoading(true);
+          try {
+              await db.requestRenewal(proposal.id);
+              alert("ส่งคำขอต่ออายุเรียบร้อยแล้ว เจ้าหน้าที่จะดำเนินการตรวจสอบ");
+              reloadProposal();
+          } catch(e: any) {
+              alert("Error: " + e.message);
+          } finally {
+              setActionLoading(false);
+          }
+      }
+  };
+
   const handleSubmitProgressReport = async () => {
      if (!reportLink) return alert('กรุณาใส่ลิงก์ไฟล์รายงาน');
      await db.submitProgressReport(
@@ -288,16 +375,33 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
     if (proposal.status === ProposalStatus.REJECTED) color = 'bg-red-100 text-red-700';
     if (proposal.status === ProposalStatus.REVISION_REQ) color = 'bg-orange-100 text-orange-700';
     if (proposal.status === ProposalStatus.ADMIN_REJECTED) color = 'bg-red-50 text-red-600 border border-red-200';
-    // WAITING_CERT should look positive but pending
     if (proposal.status === ProposalStatus.WAITING_CERT) color = 'bg-teal-100 text-teal-800 border border-teal-200';
     if (proposal.status === ProposalStatus.IN_REVIEW) color = 'bg-blue-100 text-blue-700';
     if (proposal.status === ProposalStatus.PENDING_ADVISOR) color = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+    if (proposal.status === ProposalStatus.WITHDRAWN) color = 'bg-gray-200 text-gray-600 border border-gray-300';
+    if (proposal.status === ProposalStatus.RENEWAL_REQUESTED) color = 'bg-cyan-100 text-cyan-800 border border-cyan-200';
     
     return <span className={`px-3 py-1 rounded-full text-sm font-semibold ${color}`}>{proposal.status}</span>;
   };
 
+  // Filter and Sort Reviewers based on workload
+  const filteredReviewers = reviewersList
+      .filter(r => r.name.toLowerCase().includes(assignSearch.toLowerCase()) || r.email.toLowerCase().includes(assignSearch.toLowerCase()))
+      .sort((a, b) => {
+          // Sort by workload (ascending) then name
+          const wa = reviewerWorkload[a.id] || 0;
+          const wb = reviewerWorkload[b.id] || 0;
+          if (wa !== wb) return wa - wb;
+          return a.name.localeCompare(b.name);
+      });
+
+  const getMyReviewerStatus = (): ReviewerStatus => {
+      if (!proposal.reviewerStates) return ReviewerStatus.PENDING; // Fallback
+      return proposal.reviewerStates[user.id] || ReviewerStatus.PENDING;
+  };
+
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20 relative">
       <button onClick={() => onNavigate('dashboard')} className="flex items-center text-slate-500 hover:text-slate-800 transition-colors">
         <ArrowLeft size={20} className="mr-2" /> กลับไปแดชบอร์ด
       </button>
@@ -473,7 +577,29 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
           )}
 
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-             <h3 className="font-semibold text-lg mb-4 text-slate-800 border-b pb-2">รายละเอียดโครงการ</h3>
+             <div className="flex justify-between items-start mb-4 border-b pb-2">
+                <h3 className="font-semibold text-lg text-slate-800">รายละเอียดโครงการ</h3>
+                <div className="flex gap-2">
+                    {/* Researcher Actions: Withdraw & Renew */}
+                    {hasPermission(user.roles, Permission.WITHDRAW_PROPOSAL) && 
+                        user.id === proposal.researcherId && 
+                        proposal.status !== ProposalStatus.APPROVED && 
+                        proposal.status !== ProposalStatus.REJECTED && 
+                        proposal.status !== ProposalStatus.WITHDRAWN && (
+                        <button onClick={handleResearcherWithdraw} className="text-xs text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                            <Trash2 size={12} /> ถอนโครงการ
+                        </button>
+                    )}
+                    
+                    {hasPermission(user.roles, Permission.REQUEST_RENEWAL) && 
+                        proposal.status === ProposalStatus.APPROVED && (
+                        <button onClick={handleResearcherRenew} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-300 px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                            <RefreshCw size={12} /> ขอต่ออายุใบรับรอง
+                        </button>
+                    )}
+                </div>
+             </div>
+             
              <div className="grid grid-cols-2 gap-4 text-sm">
                 <div><span className="text-slate-500 block">ผู้วิจัย:</span> {proposal.researcherName}</div>
                 <div><span className="text-slate-500 block">สังกัด:</span> {proposal.faculty} ({proposal.campus})</div>
@@ -492,8 +618,19 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
              
              <div className="mt-6 flex flex-col gap-2">
                 <a href={proposal.fileLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-blue-600 hover:underline bg-blue-50 p-3 rounded-lg border border-blue-100">
-                  <ExternalLink size={16} /> ลิงก์เอกสารโครงการ (Google Drive)
+                  <ExternalLink size={16} /> ลิงก์เอกสารโครงการ (Google Drive ของผู้วิจัย)
                 </a>
+                
+                {/* Admin Consolidated Link (Displayed prominently if exists) */}
+                {proposal.consolidatedFileLink && (
+                    <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
+                        <p className="text-xs text-purple-800 font-bold mb-1">เอกสารฉบับรวบรวม (โดย Admin):</p>
+                        <a href={proposal.consolidatedFileLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-purple-700 hover:underline text-sm font-medium">
+                            <Shield size={14} /> ลิงก์เอกสารสำหรับกรรมการ
+                        </a>
+                    </div>
+                )}
+
                 {proposal.paymentSlipLink && (
                    <a href={proposal.paymentSlipLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-blue-600 hover:underline bg-blue-50 p-3 rounded-lg border border-blue-100">
                      <FileText size={16} /> หลักฐานการชำระเงิน
@@ -567,6 +704,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                   {proposal.reviewers.map((reviewerId, index) => {
                      const reviewerInfo = reviewersList.find(u => u.id === reviewerId);
                      const reviewData = proposal.reviews?.find(r => r.reviewerId === reviewerId);
+                     const acceptanceStatus = proposal.reviewerStates?.[reviewerId] || ReviewerStatus.PENDING;
 
                      return (
                         <div key={reviewerId} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50">
@@ -578,8 +716,12 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                                  <div className="font-medium text-slate-800">
                                     {reviewerInfo ? reviewerInfo.name : 'Unknown Reviewer'}
                                  </div>
-                                 <div className="text-xs text-slate-500">
+                                 <div className="text-xs text-slate-500 flex items-center gap-2">
                                     {reviewerInfo?.faculty || 'Reviewer'}
+                                    {/* Acceptance Status Badge */}
+                                    {acceptanceStatus === ReviewerStatus.PENDING && <span className="bg-yellow-100 text-yellow-800 px-1.5 rounded-[4px] text-[10px]">รอตอบรับ</span>}
+                                    {acceptanceStatus === ReviewerStatus.ACCEPTED && <span className="bg-green-100 text-green-800 px-1.5 rounded-[4px] text-[10px]">ตอบรับแล้ว</span>}
+                                    {acceptanceStatus === ReviewerStatus.DECLINED && <span className="bg-red-100 text-red-800 px-1.5 rounded-[4px] text-[10px]">ปฏิเสธ</span>}
                                  </div>
                               </div>
                            </div>
@@ -848,28 +990,33 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                     </div>
                     <div className="p-4 space-y-4">
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">มอบหมายกรรมการ (Assign Reviewers)</label>
-                            {reviewersList.length > 0 ? (
-                                <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-slate-50">
-                                    {reviewersList.map(r => (
-                                        <label key={r.id} className="flex items-center gap-2 p-2 hover:bg-white rounded cursor-pointer transition-colors">
-                                            <input 
-                                                type="checkbox" 
-                                                className="rounded text-blue-600 focus:ring-blue-500"
-                                                checked={selectedReviewers.includes(r.id)}
-                                                onChange={(e) => {
-                                                    if(e.target.checked) setSelectedReviewers(prev => [...prev, r.id]);
-                                                    else setSelectedReviewers(prev => prev.filter(id => id !== r.id));
-                                                }}
-                                            />
-                                            <span className="text-sm text-slate-700">{r.name}</span>
-                                        </label>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">มอบหมายกรรมการ</label>
+                            
+                            <button 
+                                onClick={() => setShowAssignModal(true)}
+                                className="w-full bg-blue-50 text-blue-700 border border-blue-200 py-3 rounded-lg font-medium hover:bg-blue-100 flex items-center justify-center gap-2"
+                            >
+                                <UserPlus size={18} />
+                                เลือกกรรมการ ({selectedReviewers.length})
+                            </button>
+                            
+                            {selectedReviewers.length > 0 && (
+                                <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
+                                    {reviewersList.filter(r => selectedReviewers.includes(r.id)).map(r => (
+                                        <div key={r.id} className="text-sm bg-slate-50 p-2 rounded flex justify-between items-center border border-slate-100">
+                                            <span>{r.name}</span>
+                                            <button 
+                                                onClick={() => setSelectedReviewers(prev => prev.filter(id => id !== r.id))}
+                                                className="text-slate-400 hover:text-red-500"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
                                     ))}
                                 </div>
-                            ) : (
-                                <div className="text-sm text-red-500 p-2 bg-red-50 rounded">ไม่พบรายชื่อกรรมการในระบบ</div>
                             )}
-                            <p className="text-xs text-slate-500 mt-1">เลือกกรรมการอย่างน้อย 1 ท่าน</p>
+
+                            <p className="text-xs text-slate-500 mt-2">เลือกกรรมการอย่างน้อย 1 ท่าน</p>
                         </div>
                         <button 
                             onClick={handleAdminAssign}
@@ -938,17 +1085,18 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">ลิงก์ไฟล์ข้อสรุป (ถ้ามี)</label>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">ลิงก์ไฟล์ข้อสรุป (จาก Admin)</label>
                             <div className="relative">
                                 <Link2 className="absolute left-3 top-2.5 text-slate-400" size={16} />
                                 <input 
                                     type="url"
                                     className="w-full border border-slate-300 rounded-lg pl-9 p-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
-                                    placeholder="https://..."
+                                    placeholder="https://... (สำหรับกรรมการ/ผู้วิจัย)"
                                     value={adminFileLink}
                                     onChange={e => setAdminFileLink(e.target.value)}
                                 />
                             </div>
+                            <p className="text-xs text-slate-500 mt-1">ไฟล์นี้จะแสดงให้กรรมการและผู้วิจัยเห็น</p>
                         </div>
 
                         <button 
@@ -969,55 +1117,208 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                         <h3 className="font-bold text-indigo-800">ส่วนของกรรมการ</h3>
                     </div>
                     <div className="p-4 space-y-4">
-                        <div className="bg-blue-50 p-3 rounded text-xs text-blue-800 border border-blue-100">
-                            ท่านได้รับมอบหมายให้พิจารณาโครงการนี้ กรุณาระบุผลและข้อเสนอแนะ
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">ผลการพิจารณา</label>
-                            <div className="grid grid-cols-1 gap-2">
-                                {[Vote.APPROVE, Vote.FIX, Vote.REJECT].map(v => (
-                                    <label key={v} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${vote === v ? 'bg-indigo-50 border-indigo-500' : 'hover:bg-slate-50'}`}>
-                                        <input type="radio" name="reviewerVote" checked={vote === v} onChange={() => setVote(v as Vote)} className="text-indigo-600"/>
-                                        <span className="text-sm">{v}</span>
-                                    </label>
-                                ))}
+                        {/* 1. Acceptance Section */}
+                        {getMyReviewerStatus() === ReviewerStatus.PENDING && (
+                            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-center space-y-3">
+                                <p className="text-sm font-semibold text-yellow-800">ท่านได้รับมอบหมายให้พิจารณาโครงการนี้</p>
+                                <p className="text-xs text-yellow-700">กรุณาตอบรับการพิจารณาเพื่อเริ่มดำเนินการ</p>
+                                <div className="flex gap-2 justify-center">
+                                    <button 
+                                        onClick={() => handleReviewerAccept(true)}
+                                        disabled={actionLoading}
+                                        className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+                                    >
+                                        ตอบรับ (Accept)
+                                    </button>
+                                    <button 
+                                        onClick={() => handleReviewerAccept(false)}
+                                        disabled={actionLoading}
+                                        className="bg-white text-red-600 border border-red-200 px-4 py-2 rounded text-sm hover:bg-red-50 disabled:opacity-50"
+                                    >
+                                        ปฏิเสธ (Decline)
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">ข้อคิดเห็น/ข้อเสนอแนะ</label>
-                            <textarea 
-                                className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                rows={4}
-                                placeholder="ระบุรายละเอียด..."
-                                value={comment}
-                                onChange={e => setComment(e.target.value)}
-                            />
-                        </div>
+                        {getMyReviewerStatus() === ReviewerStatus.DECLINED && (
+                            <div className="bg-red-50 p-4 rounded-lg border border-red-200 text-center">
+                                <XCircle className="mx-auto text-red-500 mb-2" size={32} />
+                                <p className="text-sm font-bold text-red-800">ท่านได้ปฏิเสธการพิจารณา</p>
+                                <p className="text-xs text-red-600">หากต้องการเปลี่ยนแปลง กรุณาติดต่อ Admin</p>
+                            </div>
+                        )}
 
-                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์ (ลิงก์)</label>
-                            <input 
-                                type="url"
-                                className="w-full border border-slate-300 rounded-lg p-2 text-sm"
-                                placeholder="https://..."
-                                value={reviewerLink}
-                                onChange={e => setReviewerLink(e.target.value)}
-                            />
-                        </div>
+                        {/* 2. Review Form (Only if Accepted) */}
+                        {getMyReviewerStatus() === ReviewerStatus.ACCEPTED && (
+                            <div className="space-y-4 animate-in fade-in">
+                                <div className="bg-blue-50 p-3 rounded text-xs text-blue-800 border border-blue-100">
+                                    ท่านได้ตอบรับแล้ว กรุณาพิจารณาเอกสารและระบุความเห็น
+                                </div>
 
-                        <button 
-                            onClick={handleReviewerSubmit}
-                            className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm"
-                        >
-                            ส่งผลการพิจารณา
-                        </button>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">ผลการพิจารณา</label>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {[Vote.APPROVE, Vote.FIX, Vote.REJECT].map(v => (
+                                            <label key={v} className={`flex items-center gap-2 p-2 rounded border cursor-pointer ${vote === v ? 'bg-indigo-50 border-indigo-500' : 'hover:bg-slate-50'}`}>
+                                                <input type="radio" name="reviewerVote" checked={vote === v} onChange={() => setVote(v as Vote)} className="text-indigo-600"/>
+                                                <span className="text-sm">{v}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">ข้อคิดเห็น/ข้อเสนอแนะ</label>
+                                    <textarea 
+                                        className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        rows={4}
+                                        placeholder="ระบุรายละเอียด..."
+                                        value={comment}
+                                        onChange={e => setComment(e.target.value)}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์ (ลิงก์)</label>
+                                    <input 
+                                        type="url"
+                                        className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                                        placeholder="https://..."
+                                        value={reviewerLink}
+                                        onChange={e => setReviewerLink(e.target.value)}
+                                    />
+                                </div>
+
+                                <button 
+                                    onClick={handleReviewerSubmit}
+                                    className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+                                >
+                                    ส่งผลการพิจารณา
+                                </button>
+                            </div>
+                        )}
                     </div>
+                </div>
+            )}
+            
+            {/* Admin Troubleshooting Tools */}
+            {user.roles.includes(Role.ADMIN) && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6">
+                     <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center gap-2">
+                        <Shield size={16} className="text-slate-600"/>
+                        <h3 className="font-bold text-slate-700 text-sm">เครื่องมือดูแลระบบ (System Tools)</h3>
+                     </div>
+                     <div className="p-4">
+                        <button 
+                            onClick={handleAdminResetStatus}
+                            className="w-full bg-white border border-slate-300 text-slate-600 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 hover:text-red-600 hover:border-red-300 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <RotateCcw size={16} /> รีเซ็ตสถานะเป็น "รอตรวจสอบ"
+                        </button>
+                        <p className="text-xs text-slate-400 mt-2 text-center">
+                            ใช้กรณีเกิดข้อผิดพลาดในการเปลี่ยนสถานะ (ข้อมูลโครงการจะไม่หาย)
+                        </p>
+                     </div>
                 </div>
             )}
         </div>
       </div>
+      
+      {/* Assign Reviewer Modal */}
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-3xl rounded-xl shadow-xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                <div className="px-6 py-4 border-b flex justify-between items-center bg-slate-50 rounded-t-xl">
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800">เลือกกรรมการพิจารณา (Assign Reviewers)</h3>
+                        <p className="text-sm text-slate-500">เลือกกรรมการที่เหมาะสมตามภาระงานปัจจุบัน</p>
+                    </div>
+                    <button onClick={() => setShowAssignModal(false)} className="text-slate-400 hover:text-slate-600">
+                        <X size={24} />
+                    </button>
+                </div>
+                
+                <div className="p-4 border-b bg-white">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                        <input 
+                            type="text" 
+                            placeholder="ค้นหาชื่อ หรืออีเมล..." 
+                            className="w-full pl-10 pr-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                            value={assignSearch}
+                            onChange={(e) => setAssignSearch(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-0">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-500 font-medium sticky top-0">
+                            <tr>
+                                <th className="px-6 py-3">ชื่อ-นามสกุล</th>
+                                <th className="px-6 py-3 w-40 text-center">ภาระงาน (Active)</th>
+                                <th className="px-6 py-3 w-20 text-center">เลือก</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredReviewers.length === 0 ? (
+                                <tr><td colSpan={3} className="px-6 py-8 text-center text-slate-400">ไม่พบรายชื่อกรรมการ</td></tr>
+                            ) : (
+                                filteredReviewers.map(r => {
+                                    const workload = reviewerWorkload[r.id] || 0;
+                                    const isSelected = selectedReviewers.includes(r.id);
+                                    
+                                    // Status color based on workload
+                                    let statusColor = 'bg-green-100 text-green-700';
+                                    if (workload >= 3) statusColor = 'bg-orange-100 text-orange-700';
+                                    if (workload >= 6) statusColor = 'bg-red-100 text-red-700';
+
+                                    return (
+                                        <tr 
+                                            key={r.id} 
+                                            className={`hover:bg-blue-50 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50/60' : ''}`}
+                                            onClick={() => {
+                                                if (isSelected) setSelectedReviewers(prev => prev.filter(id => id !== r.id));
+                                                else setSelectedReviewers(prev => [...prev, r.id]);
+                                            }}
+                                        >
+                                            <td className="px-6 py-4">
+                                                <div className="font-medium text-slate-800">{r.name}</div>
+                                                <div className="text-xs text-slate-500">{r.faculty}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${statusColor}`}>
+                                                    <Briefcase size={12} className="mr-1" /> {workload} งาน
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <div className={`w-5 h-5 rounded border mx-auto flex items-center justify-center transition-all ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
+                                                    {isSelected && <CheckCircle size={14} className="text-white" />}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="p-4 border-t bg-slate-50 rounded-b-xl flex justify-between items-center">
+                    <div className="text-sm font-medium text-slate-600">
+                        เลือกแล้ว: <span className="text-blue-600 font-bold">{selectedReviewers.length}</span> ท่าน
+                    </div>
+                    <button 
+                        onClick={() => setShowAssignModal(false)}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium shadow-sm transition-transform active:scale-95"
+                    >
+                        ยืนยันการเลือก
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

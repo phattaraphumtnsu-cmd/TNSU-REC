@@ -105,10 +105,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   // Stats Logic (Note: Stats only reflect loaded data)
   const stats = {
-    pending: proposals.filter(p => [ProposalStatus.IN_REVIEW, ProposalStatus.PENDING_ADVISOR, ProposalStatus.PENDING_ADMIN_CHECK, ProposalStatus.PENDING_DECISION].includes(p.status)).length,
+    pending: proposals.filter(p => [ProposalStatus.IN_REVIEW, ProposalStatus.PENDING_ADVISOR, ProposalStatus.PENDING_ADMIN_CHECK, ProposalStatus.PENDING_DECISION, ProposalStatus.RENEWAL_REQUESTED].includes(p.status)).length,
     revision: proposals.filter(p => [ProposalStatus.REVISION_REQ, ProposalStatus.ADMIN_REJECTED].includes(p.status)).length,
     approved: proposals.filter(p => [ProposalStatus.APPROVED, ProposalStatus.WAITING_CERT].includes(p.status)).length,
-    rejected: proposals.filter(p => p.status === ProposalStatus.REJECTED).length,
+    rejected: proposals.filter(p => p.status === ProposalStatus.REJECTED || p.status === ProposalStatus.WITHDRAWN).length,
   };
 
   const getStatusColor = (status: ProposalStatus) => {
@@ -119,6 +119,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       case ProposalStatus.REVISION_REQ:
       case ProposalStatus.ADMIN_REJECTED: return 'bg-orange-100 text-orange-700 border-orange-200';
       case ProposalStatus.SUSPENDED: return 'bg-gray-100 text-gray-700 border-gray-400 border-dashed';
+      case ProposalStatus.WITHDRAWN: return 'bg-gray-200 text-gray-600 border-gray-300';
+      case ProposalStatus.RENEWAL_REQUESTED: return 'bg-cyan-100 text-cyan-800 border-cyan-200';
       default: return 'bg-yellow-100 text-yellow-700 border-yellow-200';
     }
   };
@@ -222,7 +224,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         <StatCard label="รอพิจารณา" count={stats.pending} color="border-yellow-200 text-yellow-600" icon={Clock} />
         <StatCard label="ต้องแก้ไข" count={stats.revision} color="border-orange-200 text-orange-600" icon={AlertTriangle} />
         <StatCard label="อนุมัติแล้ว" count={stats.approved} color="border-green-200 text-green-600" icon={FileCheck} />
-        <StatCard label="ไม่อนุมัติ" count={stats.rejected} color="border-red-200 text-red-600" icon={XCircle} />
+        <StatCard label="ไม่อนุมัติ/ถอน" count={stats.rejected} color="border-red-200 text-red-600" icon={XCircle} />
       </div>
 
       {/* Main Table with Filters */}

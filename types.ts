@@ -23,7 +23,9 @@ export enum ProposalStatus {
   WAITING_CERT = 'อนุมัติ (รอใบรับรอง)',
   APPROVED = 'อนุมัติ (ได้รับใบรับรองแล้ว)',
   REJECTED = 'ไม่อนุมัติ',
-  SUSPENDED = 'ระงับชั่วคราว'
+  SUSPENDED = 'ระงับชั่วคราว',
+  WITHDRAWN = 'ถอนโครงการ',
+  RENEWAL_REQUESTED = 'ยื่นขอต่ออายุ'
 }
 
 export enum ReviewType {
@@ -36,6 +38,12 @@ export enum Vote {
   APPROVE = 'APPROVE',
   FIX = 'FIX',
   REJECT = 'REJECT'
+}
+
+export enum ReviewerStatus {
+  PENDING = 'PENDING',
+  ACCEPTED = 'ACCEPTED',
+  DECLINED = 'DECLINED'
 }
 
 export enum ReportType {
@@ -148,6 +156,7 @@ export interface Proposal {
   // Workflow data
   adminFeedback?: string; 
   reviewers: string[]; 
+  reviewerStates?: Record<string, ReviewerStatus>; // New: Track Accept/Decline status
   reviews: Review[]; 
   consolidatedFeedback?: string; 
   consolidatedFileLink?: string; 
@@ -201,6 +210,8 @@ export enum Permission {
   VOTE_AS_REVIEWER = 'VOTE_AS_REVIEWER',
   FINALIZE_DECISION = 'FINALIZE_DECISION',
   SUBMIT_REVISION = 'SUBMIT_REVISION',
+  WITHDRAW_PROPOSAL = 'WITHDRAW_PROPOSAL', // New
+  REQUEST_RENEWAL = 'REQUEST_RENEWAL', // New
   
   // Certificate & Post Approval
   ISSUE_CERTIFICATE = 'ISSUE_CERTIFICATE',
@@ -216,13 +227,16 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.ASSIGN_REVIEWERS,
     Permission.FINALIZE_DECISION,
     Permission.ISSUE_CERTIFICATE,
-    Permission.ACKNOWLEDGE_PROGRESS_REPORT
+    Permission.ACKNOWLEDGE_PROGRESS_REPORT,
+    Permission.WITHDRAW_PROPOSAL // Admin can also withdraw
   ],
   [Role.RESEARCHER]: [
     Permission.VIEW_DASHBOARD,
     Permission.SUBMIT_PROPOSAL,
     Permission.SUBMIT_REVISION,
-    Permission.SUBMIT_PROGRESS_REPORT
+    Permission.SUBMIT_PROGRESS_REPORT,
+    Permission.WITHDRAW_PROPOSAL,
+    Permission.REQUEST_RENEWAL
   ],
   [Role.ADVISOR]: [
     Permission.VIEW_DASHBOARD,

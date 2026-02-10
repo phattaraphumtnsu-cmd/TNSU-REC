@@ -27,7 +27,7 @@ import {
 } from 'firebase/auth';
 import { initializeApp, deleteApp, FirebaseApp } from 'firebase/app';
 import { auth, dbFirestore, firebaseConfig } from '../firebaseConfig';
-import { Proposal, ProposalStatus, Review, Role, User, Notification, ProgressReport, RevisionLog, AuditLog, SurveyResponse } from '../types';
+import { Proposal, ProposalStatus, Review, Role, User, Notification, ProgressReport, RevisionLog, AuditLog, SurveyResponse, ReviewerStatus } from '../types';
 
 class DatabaseService {
   currentUser: User | null = null;
@@ -188,16 +188,26 @@ class DatabaseService {
   }
 
   async getUsersByRole(role: Role): Promise<User[]> {
-    // Modified to use array-contains for roles
-    const q = query(collection(dbFirestore, 'users'), where('roles', 'array-contains', role));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs
-        .map(doc => {
-            const data = doc.data() as any;
-            if (!data.roles && data.role) data.roles = [data.role];
-            return { id: doc.id, ...data } as User;
-        })
-        .filter((u: any) => !u.isDeleted);
+    // Strategy: Fetch ALL users and filter client-side to ensure we catch both
+    // 'roles' array and legacy 'role' string without complex composite indexes
+    // This is acceptable as user count is typically < 2000 for this type of system.
+    try {
+        const q = query(collection(dbFirestore, 'users'));
+        const querySnapshot = await getDocs(q);
+        
+        return querySnapshot.docs
+            .map(doc => {
+                const data = doc.data() as any;
+                // Normalize role data
+                const roles = data.roles || (data.role ? [data.role] : []);
+                return { id: doc.id, ...data, roles } as User;
+            })
+            .filter((u: any) => !u.isDeleted && u.roles.includes(role));
+            
+    } catch (e) {
+        console.error("Error fetching users by role", e);
+        return [];
+    }
   }
 
   async updateUser(id: string, updates: Partial<User>) {
@@ -234,33 +244,14 @@ class DatabaseService {
 
   // --- Proposals ---
 
-  // Updated to support Pagination and Soft Delete Filtering
+  // REFACTORED: Server-side Filtering for improved Security & Performance (Risk C)
   async getProposals(userRoles: Role[], userId: string, lastDoc: any = null, pageSize: number = 20): Promise<{ data: Proposal[], lastDoc: any }> {
     const proposalsRef = collection(dbFirestore, 'proposals');
-    
-    // 1. If Admin, fetch all with pagination (Admins have many proposals, single field index on updatedDate works)
-    if (userRoles.includes(Role.ADMIN)) {
-        let q = query(proposalsRef, orderBy('updatedDate', 'desc'), limit(pageSize));
-        if (lastDoc) {
-            q = query(q, startAfter(lastDoc));
-        }
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs
-          .map(doc => ({ id: doc.id, ...(doc.data() as any) } as Proposal))
-          .filter((p: any) => !p.isDeleted); 
-        
-        const newLastDoc = snapshot.docs[snapshot.docs.length - 1];
-        return { data, lastDoc: newLastDoc };
-    }
-
-    // 2. Fetch based on other roles (RESEARCHER, ADVISOR, REVIEWER)
-    // To avoid "Composite Index Required" errors, we remove server-side sorting (orderBy) and limiting.
-    // We fetch all relevant docs and sort/paginate on the client. 
-    // This is safe assuming users don't have thousands of proposals each.
     const results = new Map<string, Proposal>();
 
-    const merge = (docs: any[]) => {
-        docs.forEach(doc => {
+    // Helper to process snapshots
+    const processSnapshot = (snap: any) => {
+        snap.docs.forEach((doc: any) => {
             const p = { id: doc.id, ...(doc.data() as any) } as Proposal;
             if (!(p as any).isDeleted) {
                 results.set(doc.id, p);
@@ -268,28 +259,42 @@ class DatabaseService {
         });
     };
 
+    // 1. ADMIN: Fetch All
+    if (userRoles.includes(Role.ADMIN)) {
+        let q = query(proposalsRef, orderBy('updatedDate', 'desc'), limit(pageSize));
+        if (lastDoc) q = query(q, startAfter(lastDoc));
+        const snapshot = await getDocs(q);
+        processSnapshot(snapshot);
+        return { data: Array.from(results.values()), lastDoc: snapshot.docs[snapshot.docs.length - 1] };
+    }
+
     const queries = [];
 
+    // 2. RESEARCHER: Where researcherId == userId
     if (userRoles.includes(Role.RESEARCHER)) {
         queries.push(getDocs(query(proposalsRef, where('researcherId', '==', userId))));
     }
 
+    // 3. ADVISOR: Where advisorId == userId
     if (userRoles.includes(Role.ADVISOR)) {
         queries.push(getDocs(query(proposalsRef, where('advisorId', '==', userId))));
     }
 
+    // 4. REVIEWER: Where reviewers array-contains userId
     if (userRoles.includes(Role.REVIEWER)) {
         queries.push(getDocs(query(proposalsRef, where('reviewers', 'array-contains', userId))));
     }
 
-    const snapshots = await Promise.all(queries);
-    snapshots.forEach(snap => merge(snap.docs));
+    // Execute relevant queries
+    if (queries.length > 0) {
+        const snapshots = await Promise.all(queries);
+        snapshots.forEach(processSnapshot);
+    }
 
     const data = Array.from(results.values());
-    // Client-side Sort
+    // Client-side Sort for mixed results (since we can't easily compound query different fields)
     data.sort((a,b) => new Date(b.updatedDate).getTime() - new Date(a.updatedDate).getTime());
     
-    // Return all data. lastDoc is null because we loaded everything.
     return { data, lastDoc: null }; 
   }
 
@@ -343,6 +348,7 @@ class DatabaseService {
             revisionHistory: [],
             reviews: [],
             reviewers: [],
+            reviewerStates: {}, // Initialize reviewer states
             progressReports: [],
             status: p.advisorId ? ProposalStatus.PENDING_ADVISOR : ProposalStatus.PENDING_ADMIN_CHECK,
             submissionDate: new Date().toISOString().split('T')[0],
@@ -379,6 +385,18 @@ class DatabaseService {
           updatedAt: new Date().toISOString()
       });
       await this.logActivity('DELETE_PROPOSAL', id, 'Proposal soft deleted by user');
+  }
+
+  async withdrawProposal(id: string, reason?: string) {
+      await this.updateProposal(id, { status: ProposalStatus.WITHDRAWN });
+      await this.logActivity('WITHDRAW_PROPOSAL', id, `Reason: ${reason || 'N/A'}`);
+      await this.notifyAdmins(`โครงการถูกถอนโดยผู้วิจัย: ${id}`, `proposal?id=${id}`);
+  }
+
+  async requestRenewal(id: string) {
+      await this.updateProposal(id, { status: ProposalStatus.RENEWAL_REQUESTED });
+      await this.logActivity('REQUEST_RENEWAL', id, 'Researcher requested certificate renewal');
+      await this.notifyAdmins(`มีการขอยื่นต่ออายุใบรับรอง: ${id}`, `proposal?id=${id}`);
   }
 
   async updateProposal(id: string, updates: Partial<Proposal>) {
@@ -458,13 +476,28 @@ class DatabaseService {
   }
 
   async assignReviewers(proposalId: string, reviewerIds: string[], proposalTitle: string) {
+    // Initialize Reviewer States as PENDING
+    const reviewerStates: Record<string, ReviewerStatus> = {};
+    reviewerIds.forEach(id => reviewerStates[id] = ReviewerStatus.PENDING);
+
     await this.updateProposal(proposalId, {
       reviewers: reviewerIds,
+      reviewerStates: reviewerStates,
       status: ProposalStatus.IN_REVIEW
     });
     for (const rid of reviewerIds) {
-       await this.sendNotification(rid, `คุณได้รับมอบหมายให้พิจารณาโครงการ: ${proposalTitle}`, `proposal?id=${proposalId}`);
+       await this.sendNotification(rid, `คุณได้รับมอบหมายให้พิจารณาโครงการ (กรุณากดตอบรับ): ${proposalTitle}`, `proposal?id=${proposalId}`);
     }
+  }
+
+  async updateReviewerStatus(proposalId: string, reviewerId: string, status: ReviewerStatus, currentStates: Record<string, ReviewerStatus>) {
+      const newStates = { ...currentStates, [reviewerId]: status };
+      await this.updateProposal(proposalId, { reviewerStates: newStates });
+      
+      // If declined, notify admin
+      if (status === ReviewerStatus.DECLINED) {
+          await this.notifyAdmins(`กรรมการปฏิเสธการพิจารณา: ${proposalId}`, `proposal?id=${proposalId}`);
+      }
   }
 
   async submitReview(proposalId: string, review: Review, currentReviews: Review[], proposalTitle: string) {
@@ -525,6 +558,35 @@ class DatabaseService {
       });
       await this.updateProposal(proposalId, { progressReports: updatedReports });
       await this.logActivity('ACKNOWLEDGE_REPORT', proposalId, `Report ${reportId} acknowledged`);
+  }
+
+  // --- Statistics & Workload ---
+  async getReviewerWorkload(): Promise<Record<string, number>> {
+      // Calculates how many active reviews each reviewer has
+      // Active = status IN_REVIEW
+      try {
+          const q = query(
+              collection(dbFirestore, 'proposals'), 
+              where('status', '==', ProposalStatus.IN_REVIEW)
+          );
+          const snapshot = await getDocs(q);
+          const workload: Record<string, number> = {};
+          
+          snapshot.forEach(doc => {
+              const data = doc.data();
+              if (data.reviewers && Array.isArray(data.reviewers)) {
+                  data.reviewers.forEach((rid: string) => {
+                      // Optionally check if they declined, if so, don't count?
+                      // For now, count all assignments to show potential load
+                      workload[rid] = (workload[rid] || 0) + 1;
+                  });
+              }
+          });
+          return workload;
+      } catch (e) {
+          console.error("Failed to fetch workload", e);
+          return {};
+      }
   }
 
   // --- Surveys ---
@@ -604,6 +666,7 @@ class DatabaseService {
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Notification));
     } catch (e) {
+        // Fallback if index is missing
         const q2 = query(collection(dbFirestore, 'notifications'), where('userId', '==', userId));
         const qs = await getDocs(q2);
         return qs.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Notification)).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
