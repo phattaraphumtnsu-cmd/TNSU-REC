@@ -1,5 +1,4 @@
 
-
 import { 
   collection, 
   doc, 
@@ -235,71 +234,62 @@ class DatabaseService {
 
   // --- Proposals ---
 
-  // Updated to support Pagination
+  // Updated to support Pagination and Soft Delete Filtering
   async getProposals(userRoles: Role[], userId: string, lastDoc: any = null, pageSize: number = 20): Promise<{ data: Proposal[], lastDoc: any }> {
     const proposalsRef = collection(dbFirestore, 'proposals');
     
-    // 1. If Admin, fetch all with pagination.
+    // 1. If Admin, fetch all with pagination (Admins have many proposals, single field index on updatedDate works)
     if (userRoles.includes(Role.ADMIN)) {
         let q = query(proposalsRef, orderBy('updatedDate', 'desc'), limit(pageSize));
         if (lastDoc) {
             q = query(q, startAfter(lastDoc));
         }
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Proposal));
+        const data = snapshot.docs
+          .map(doc => ({ id: doc.id, ...(doc.data() as any) } as Proposal))
+          .filter((p: any) => !p.isDeleted); 
+        
         const newLastDoc = snapshot.docs[snapshot.docs.length - 1];
         return { data, lastDoc: newLastDoc };
     }
 
-    // 2. Fetch based on other roles (Limit applied to individual queries, merge handling is basic)
+    // 2. Fetch based on other roles (RESEARCHER, ADVISOR, REVIEWER)
+    // To avoid "Composite Index Required" errors, we remove server-side sorting (orderBy) and limiting.
+    // We fetch all relevant docs and sort/paginate on the client. 
+    // This is safe assuming users don't have thousands of proposals each.
     const results = new Map<string, Proposal>();
 
-    // Helper to merge
     const merge = (docs: any[]) => {
         docs.forEach(doc => {
-            results.set(doc.id, { id: doc.id, ...(doc.data() as any) } as Proposal);
+            const p = { id: doc.id, ...(doc.data() as any) } as Proposal;
+            if (!(p as any).isDeleted) {
+                results.set(doc.id, p);
+            }
         });
     };
 
+    const queries = [];
+
     if (userRoles.includes(Role.RESEARCHER)) {
-        let q = query(proposalsRef, where('researcherId', '==', userId), orderBy('updatedDate', 'desc'), limit(pageSize));
-        if (lastDoc) q = query(q, startAfter(lastDoc));
-        const snap = await getDocs(q);
-        merge(snap.docs);
+        queries.push(getDocs(query(proposalsRef, where('researcherId', '==', userId))));
     }
 
     if (userRoles.includes(Role.ADVISOR)) {
-        let q = query(proposalsRef, where('advisorId', '==', userId), orderBy('updatedDate', 'desc'), limit(pageSize));
-         if (lastDoc) q = query(q, startAfter(lastDoc));
-        const snap = await getDocs(q);
-        merge(snap.docs);
+        queries.push(getDocs(query(proposalsRef, where('advisorId', '==', userId))));
     }
 
     if (userRoles.includes(Role.REVIEWER)) {
-        let q = query(proposalsRef, where('reviewers', 'array-contains', userId), orderBy('updatedDate', 'desc'), limit(pageSize));
-        // Note: 'array-contains' limits combined with orderBy usually require specific indexes.
-        // We will try without explicit index or use client-side sort if needed.
-        // Using updatedDate might fail if index missing.
-        try {
-             if (lastDoc) q = query(q, startAfter(lastDoc));
-             const snap = await getDocs(q);
-             merge(snap.docs);
-        } catch(e) {
-            // Fallback for missing index on REVIEWER
-             const q2 = query(proposalsRef, where('reviewers', 'array-contains', userId), limit(pageSize));
-             const snap = await getDocs(q2);
-             merge(snap.docs);
-        }
+        queries.push(getDocs(query(proposalsRef, where('reviewers', 'array-contains', userId))));
     }
 
+    const snapshots = await Promise.all(queries);
+    snapshots.forEach(snap => merge(snap.docs));
+
     const data = Array.from(results.values());
-    // Sort merged results
+    // Client-side Sort
     data.sort((a,b) => new Date(b.updatedDate).getTime() - new Date(a.updatedDate).getTime());
     
-    // Return last doc is tricky with merged queries. 
-    // We will return the last doc from the Researcher query if available, or just null to stop pagination for multi-role non-admins for now.
-    // This is a trade-off for simplicity without complex backend aggregation.
-    // In practice, non-admins rarely have >20 active proposals.
+    // Return all data. lastDoc is null because we loaded everything.
     return { data, lastDoc: null }; 
   }
 
@@ -308,7 +298,9 @@ class DatabaseService {
     const docRef = doc(dbFirestore, 'proposals', id);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      return { id: docSnap.id, ...(docSnap.data() as any) } as Proposal;
+      const p = { id: docSnap.id, ...(docSnap.data() as any) } as Proposal;
+      if((p as any).isDeleted) return undefined;
+      return p;
     }
     return undefined;
   }
@@ -346,6 +338,7 @@ class DatabaseService {
         const newProposalData: any = {
             ...p,
             code,
+            isDeleted: false,
             revisionCount: 0,
             revisionHistory: [],
             reviews: [],
@@ -378,6 +371,16 @@ class DatabaseService {
     });
   }
 
+  async deleteProposal(id: string) {
+      const proposalRef = doc(dbFirestore, 'proposals', id);
+      await updateDoc(proposalRef, {
+          isDeleted: true,
+          status: 'DELETED',
+          updatedAt: new Date().toISOString()
+      });
+      await this.logActivity('DELETE_PROPOSAL', id, 'Proposal soft deleted by user');
+  }
+
   async updateProposal(id: string, updates: Partial<Proposal>) {
     const proposalRef = doc(dbFirestore, 'proposals', id);
 
@@ -388,6 +391,7 @@ class DatabaseService {
         const currentData = currentDoc.data() as Proposal;
         const finalUpdates = { ...updates, updatedDate: new Date().toISOString().split('T')[0] };
 
+        // Auto-generate Certificate Number ONLY if explicitly approved and number not set
         if ((updates.status === ProposalStatus.APPROVED || updates.status === ProposalStatus.WAITING_CERT)) {
             const existingCert = currentData.approvalDetail?.certificateNumber || currentData.certNumber;
 
@@ -402,7 +406,8 @@ class DatabaseService {
                     newCount = counterDoc.data().count + 1;
                 }
 
-                const certNum = `TNSU-${facCode} ${newCount.toString().padStart(3, '0')}/${year}`;
+                // Update: Cert format changed to [FAC] [NUM]/[YEAR] (No TNSU- prefix)
+                const certNum = `${facCode} ${newCount.toString().padStart(3, '0')}/${year}`;
                 const today = new Date();
                 const nextYear = new Date(today);
                 nextYear.setFullYear(today.getFullYear() + 1);

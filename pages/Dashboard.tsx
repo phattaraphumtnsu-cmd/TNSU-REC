@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database'; // Real DB
 import { ProposalStatus, Role, Proposal, FACULTIES } from '../types';
-import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2, Calendar, CheckCircle, User, Shield, Gavel, FileText, ChevronDown } from 'lucide-react';
+import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2, Calendar, CheckCircle, User, Shield, Gavel, FileText, ChevronDown, Trash2 } from 'lucide-react';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -65,6 +65,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         fetchProposals(false);
     }
   }, [user]);
+
+  const handleDeleteProposal = async (proposalId: string, title: string) => {
+      if (window.confirm(`คุณแน่ใจหรือไม่ที่จะลบโครงการ "${title}"?\nการกระทำนี้ไม่สามารถยกเลิกได้`)) {
+          try {
+              await db.deleteProposal(proposalId);
+              setProposals(prev => prev.filter(p => p.id !== proposalId));
+              alert('ลบโครงการเรียบร้อยแล้ว');
+          } catch (error) {
+              console.error(error);
+              alert('เกิดข้อผิดพลาดในการลบ');
+          }
+      }
+  };
 
   const checkExpiry = (data: Proposal[]) => {
       const today = new Date();
@@ -347,13 +360,24 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button 
-                          onClick={() => onNavigate('proposal', { id: p.id })}
-                          className="text-slate-400 hover:text-blue-600 transition-colors p-2"
-                          title="ดูรายละเอียด"
-                        >
-                           {user.roles.includes(Role.ADMIN) || (isMyReview && p.status === ProposalStatus.IN_REVIEW) ? <Edit2 size={18} /> : <Eye size={18} />}
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                            <button 
+                              onClick={() => onNavigate('proposal', { id: p.id })}
+                              className="text-slate-400 hover:text-blue-600 transition-colors p-2"
+                              title="ดูรายละเอียด"
+                            >
+                               {user.roles.includes(Role.ADMIN) || (isMyReview && p.status === ProposalStatus.IN_REVIEW) ? <Edit2 size={18} /> : <Eye size={18} />}
+                            </button>
+                            {(user.roles.includes(Role.ADMIN) || user.id === p.researcherId) && (
+                                <button
+                                    onClick={() => handleDeleteProposal(p.id, p.titleTh)}
+                                    className="text-slate-400 hover:text-red-600 transition-colors p-2"
+                                    title="ลบโครงการ"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            )}
+                        </div>
                       </td>
                     </tr>
                   );

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { ProposalStatus, ReviewType, Role, UserType, User } from '../types';
-import { ArrowLeft, Loader2, Link as LinkIcon, Info, AlertCircle, UserCheck, Wallet } from 'lucide-react';
+import { ArrowLeft, Loader2, Link as LinkIcon, Info, AlertCircle, UserCheck, Wallet, Search } from 'lucide-react';
 import FileUploader from '../components/FileUploader';
 
 interface SubmissionFormProps {
@@ -13,6 +13,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
   const user = db.currentUser;
   const [loading, setLoading] = useState(false);
   const [advisors, setAdvisors] = useState<User[]>([]);
+  const [advisorSearch, setAdvisorSearch] = useState(''); // New: Search State
   
   const [formData, setFormData] = useState({
     titleTh: '',
@@ -95,6 +96,13 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
     }
   };
 
+  // Logic to filter advisors based on search input
+  const filteredAdvisors = advisors.filter(a => 
+    a.name.toLowerCase().includes(advisorSearch.toLowerCase()) || 
+    a.email.toLowerCase().includes(advisorSearch.toLowerCase()) ||
+    (a.faculty && a.faculty.toLowerCase().includes(advisorSearch.toLowerCase()))
+  );
+
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <button onClick={() => onNavigate('dashboard')} className="flex items-center text-slate-500 hover:text-slate-800 mb-6 transition-colors">
@@ -167,7 +175,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
 
           <hr className="border-slate-100" />
 
-          {/* Section 2: Advisor Selection (Student Only) */}
+          {/* Section 2: Advisor Selection (Student Only) - IMPROVED */}
           {isStudent && (
             <>
               <div>
@@ -179,25 +187,47 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                     <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100 mb-4 flex gap-3">
                          <UserCheck className="text-yellow-600 flex-shrink-0" size={20} />
                          <div className="text-sm text-yellow-800">
-                            <strong>สำหรับนักศึกษา:</strong> ท่านต้องเลือกอาจารย์ที่ปรึกษาที่มีรายชื่อในระบบ เพื่อให้อาจารย์ทำการกดอนุมัติโครงการเบื้องต้น ก่อนที่โครงการจะถูกส่งไปยังเจ้าหน้าที่ (Admin)
+                            <strong>สำหรับนักศึกษา:</strong> ท่านต้องเลือกอาจารย์ที่ปรึกษาเพื่อทำการอนุมัติโครงการเบื้องต้น
+                            <br/>
+                            <span className="text-xs text-yellow-700 opacity-80">* กรุณาค้นหาและเลือกชื่ออาจารย์ให้ถูกต้อง (สังเกต ชื่อ-คณะ และอีเมล)</span>
                          </div>
                     </div>
+                    
+                    <div className="mb-4">
+                       <label className="block text-sm font-medium text-slate-700 mb-1">ค้นหารายชื่ออาจารย์</label>
+                       <div className="relative">
+                          <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                          <input 
+                             type="text" 
+                             className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                             placeholder="พิมพ์ชื่อ หรือ อีเมล เพื่อค้นหา..."
+                             value={advisorSearch}
+                             onChange={(e) => setAdvisorSearch(e.target.value)}
+                          />
+                       </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">อาจารย์ที่ปรึกษา <span className="text-red-500">*</span></label>
-                      <select className="w-full border-slate-300 rounded-lg p-2.5 border outline-none focus:ring-2 focus:ring-blue-500"
+                      <select className="w-full border-slate-300 rounded-lg p-2.5 border outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                          required
+                         size={5} // Listbox style for better visibility
                          value={formData.advisorId} 
                          onChange={e => setFormData({...formData, advisorId: e.target.value})}
                       >
-                         <option value="">-- กรุณาเลือกอาจารย์ที่ปรึกษา --</option>
-                         {advisors.length > 0 ? (
-                            advisors.map(a => (
-                               <option key={a.id} value={a.id}>{a.name} ({a.faculty})</option>
+                         {filteredAdvisors.length > 0 ? (
+                            filteredAdvisors.map(a => (
+                               <option key={a.id} value={a.id} className="py-1 px-2 border-b border-slate-50 hover:bg-blue-50 cursor-pointer">
+                                  {a.name} | {a.faculty || 'ไม่ระบุคณะ'} | {a.email}
+                               </option>
                             ))
                          ) : (
-                            <option disabled>ไม่พบรายชื่ออาจารย์ (กรุณาติดต่อ Admin)</option>
+                            <option disabled>ไม่พบรายชื่ออาจารย์ที่ตรงกับคำค้นหา</option>
                          )}
                       </select>
+                      <p className="text-xs text-slate-500 mt-2">
+                         * พบอาจารย์ทั้งหมด {advisors.length} ท่าน (แสดง {filteredAdvisors.length} ท่านที่ตรงกับคำค้นหา)
+                      </p>
                     </div>
                 </div>
               </div>

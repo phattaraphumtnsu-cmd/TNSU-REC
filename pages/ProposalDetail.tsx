@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Proposal, ProposalStatus, Role, Vote, Review, User, ReviewType, ReportType, Permission, hasPermission } from '../types';
-import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users, PenTool, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users, PenTool, X, Award } from 'lucide-react';
 
 interface ProposalDetailProps {
   id: string;
@@ -33,7 +32,12 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   const [adminFileLink, setAdminFileLink] = useState('');
   
   // Admin Certificate State
-  const [adminCertLink, setAdminCertLink] = useState('');
+  const [certData, setCertData] = useState({
+      number: '',
+      issueDate: '',
+      expiryDate: '',
+      link: ''
+  });
 
   // Researcher Revision State
   const [revisionLink, setRevisionLink] = useState('');
@@ -64,6 +68,21 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                 const rList = await db.getUsersByRole(Role.REVIEWER);
                 setReviewersList(rList);
             }
+            
+            // Init cert data if waiting
+            if (p && p.status === ProposalStatus.WAITING_CERT) {
+                const today = new Date();
+                const nextYear = new Date(today);
+                nextYear.setFullYear(today.getFullYear() + 1);
+                
+                setCertData({
+                    number: p.approvalDetail?.certificateNumber || p.certNumber || '',
+                    issueDate: today.toISOString().split('T')[0],
+                    expiryDate: nextYear.toISOString().split('T')[0],
+                    link: p.certLink || ''
+                });
+            }
+
         } catch (e) {
             console.error("Failed to fetch proposal", e);
         } finally {
@@ -168,7 +187,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
     } else {
        // APPROVE case: Move to WAITING_CERT first to allow time for signing
        updates.status = ProposalStatus.WAITING_CERT;
-       alertMsg = 'บันทึกผลอนุมัติเรียบร้อย (สถานะ: รอออกใบรับรอง) - กรุณาดำเนินการออกใบรับรองในขั้นตอนถัดไปเมื่อเอกสารพร้อม';
+       alertMsg = 'บันทึกผลอนุมัติเรียบร้อย (สถานะ: รอออกใบรับรอง) - กรุณาดำเนินการออกใบรับรองในขั้นตอนถัดไป';
     }
     
     await db.updateProposal(proposal.id, updates);
@@ -177,18 +196,26 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   };
 
   const handleAdminIssueCert = async () => {
-     // Admin manually confirms cert issuance
+     if (!certData.link) {
+         if(!window.confirm("คุณไม่ได้ระบุลิงก์ใบรับรอง ยืนยันที่จะบันทึกโดยไม่มีลิงก์หรือไม่?")) return;
+     }
+
+     // Admin confirms cert issuance with edited details
      const updates: any = {
         status: ProposalStatus.APPROVED,
-        nextReportDueDate: new Date(new Date().setMonth(new Date().getMonth() + 6)).toISOString().split('T')[0]
+        approvalDetail: {
+            certificateNumber: certData.number, // Uses the edited number or auto-generated one if empty (handled by DB if undefined)
+            issuanceDate: certData.issueDate,
+            expiryDate: certData.expiryDate
+        },
+        certNumber: certData.number,
+        certLink: certData.link,
+        approvalDate: certData.issueDate,
+        nextReportDueDate: new Date(new Date(certData.issueDate).setMonth(new Date(certData.issueDate).getMonth() + 6)).toISOString().split('T')[0]
      };
-     
-     // Optional: if link provided
-     if (adminCertLink) updates.certLink = adminCertLink;
 
      await db.updateProposal(proposal.id, updates);
-     setAdminCertLink('');
-     alert('ออกใบรับรองและเปลี่ยนสถานะเป็น "อนุมัติ/ได้รับใบรับรอง" เรียบร้อยแล้ว');
+     alert('บันทึกข้อมูลใบรับรองและเปลี่ยนสถานะเป็น "อนุมัติ/ได้รับใบรับรอง" เรียบร้อยแล้ว');
      reloadProposal();
   };
 
@@ -267,17 +294,13 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
         {proposal.status === ProposalStatus.APPROVED && (
            <div className="flex flex-col items-end gap-2">
              <div className="flex gap-2">
-                {proposal.certLink && (
-                    <a href={proposal.certLink} target="_blank" rel="noreferrer" className="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-200 shadow-sm transition-transform active:scale-95 text-sm">
-                        <ExternalLink size={16} /> ไฟล์แนบ (Google Drive)
+                {proposal.certLink ? (
+                    <a href={proposal.certLink} target="_blank" rel="noreferrer" className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 shadow-sm transition-transform active:scale-95 text-sm">
+                        <Award size={18} /> ดาวน์โหลดใบรับรอง (E-Certificate)
                     </a>
+                ) : (
+                    <span className="text-sm text-slate-400 italic bg-slate-100 px-3 py-1 rounded">ไม่พบลิงก์ใบรับรอง</span>
                 )}
-                <button 
-                    onClick={() => onNavigate('certificate', { id: proposal.id })}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 shadow-sm transition-transform active:scale-95"
-                >
-                    <Printer size={18} /> พิมพ์ใบรับรอง (E-Cert)
-                </button>
              </div>
              <div className="text-xs text-slate-500 flex items-center gap-1">
                 <Calendar size={12}/> วันที่รับรอง: {proposal.approvalDetail?.issuanceDate || proposal.approvalDate}
@@ -290,6 +313,68 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
         {/* Left: Info */}
         <div className="lg:col-span-2 space-y-6">
           
+          {/* Certificate Issuance Section for Admin (Waiting Cert) */}
+          {hasPermission(user.roles, Permission.ISSUE_CERTIFICATE) && proposal.status === ProposalStatus.WAITING_CERT && (
+            <div className="bg-teal-50 border border-teal-200 rounded-xl p-6 shadow-sm animate-in slide-in-from-top-2">
+                <h3 className="text-lg font-bold text-teal-800 flex items-center gap-2 mb-4">
+                    <Award size={24} /> จัดการออกใบรับรอง (Issue Certificate)
+                </h3>
+                <div className="bg-white p-4 rounded-lg border border-teal-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="md:col-span-2">
+                         <label className="block text-sm font-semibold text-slate-700 mb-1">เลขที่ใบรับรอง (Certificate No.)</label>
+                         <input 
+                            type="text" 
+                            className="w-full border border-slate-300 p-2.5 rounded-lg bg-slate-50"
+                            placeholder="ระบบจะสร้างให้อัตโนมัติหากเว้นว่าง (เช่น SCI 001/2569)"
+                            value={certData.number}
+                            onChange={(e) => setCertData({...certData, number: e.target.value})}
+                         />
+                         <p className="text-xs text-slate-500 mt-1">* หากเว้นว่าง ระบบจะรันเลขให้อัตโนมัติตามลำดับ</p>
+                     </div>
+                     <div className="md:col-span-2">
+                         <label className="block text-sm font-semibold text-slate-700 mb-1">ลิงก์ไฟล์ใบรับรอง (Certificate URL)</label>
+                         <div className="relative">
+                            <ExternalLink className="absolute left-3 top-3 text-slate-400" size={18} />
+                            <input 
+                                type="url" 
+                                className="w-full border border-slate-300 pl-10 pr-3 py-2.5 rounded-lg bg-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                placeholder="https://drive.google.com/..."
+                                value={certData.link}
+                                onChange={(e) => setCertData({...certData, link: e.target.value})}
+                            />
+                         </div>
+                         <p className="text-xs text-slate-500 mt-1">* กรุณาวางลิงก์ Google Drive หรือลิงก์ไฟล์ PDF ของใบรับรองที่ลงนามแล้ว</p>
+                     </div>
+                     <div>
+                         <label className="block text-sm font-semibold text-slate-700 mb-1">วันที่ออกใบรับรอง (Issuance Date)</label>
+                         <input 
+                            type="date" 
+                            className="w-full border border-slate-300 p-2.5 rounded-lg bg-white"
+                            value={certData.issueDate}
+                            onChange={(e) => setCertData({...certData, issueDate: e.target.value})}
+                         />
+                     </div>
+                     <div>
+                         <label className="block text-sm font-semibold text-slate-700 mb-1">วันหมดอายุ (Expiry Date)</label>
+                         <input 
+                            type="date" 
+                            className="w-full border border-slate-300 p-2.5 rounded-lg bg-white"
+                            value={certData.expiryDate}
+                            onChange={(e) => setCertData({...certData, expiryDate: e.target.value})}
+                         />
+                     </div>
+                     <div className="md:col-span-2 flex justify-end mt-2">
+                         <button 
+                            onClick={handleAdminIssueCert}
+                            className="bg-teal-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-teal-700 shadow-sm transition-all active:scale-95 flex items-center gap-2"
+                         >
+                            <CheckCircle size={18} /> บันทึกข้อมูลใบรับรอง
+                         </button>
+                     </div>
+                </div>
+            </div>
+          )}
+
           {/* Action Required Banner for Researcher */}
           {hasPermission(user.roles, Permission.SUBMIT_REVISION) && (isRejectedByAdmin || isRevisionReq) && (
              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
