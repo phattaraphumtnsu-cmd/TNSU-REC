@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Auth from './pages/Auth';
@@ -30,9 +31,16 @@ const App: React.FC = () => {
         if (firebaseUser) {
            // When Firebase Auth state changes, sync with Firestore User Data
            const appUser = await db.syncCurrentUser(firebaseUser);
-           setUser(appUser);
-           if (currentPage === 'auth') {
-              setCurrentPage('dashboard');
+           
+           if (appUser) {
+               setUser(appUser);
+               if (currentPage === 'auth') {
+                  setCurrentPage('dashboard');
+               }
+           } else {
+               // Auth exists but Data is missing (e.g. mid-registration race condition)
+               // Do NOT redirect to dashboard yet. Stay on Auth until explicit login/register completes.
+               setUser(null);
            }
         } else {
            setUser(null);

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database'; // Real DB
 import { ProposalStatus, Role, Proposal, FACULTIES } from '../types';
-import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2, Calendar, CheckCircle, User, Shield, Gavel, FileText } from 'lucide-react';
+import { Edit2, Eye, Plus, AlertTriangle, FileCheck, XCircle, Clock, Filter, FilePlus, Search, X, Loader2, Calendar, CheckCircle, User, Shield, Gavel, FileText, ChevronDown } from 'lucide-react';
 
 interface DashboardProps {
   onNavigate: (page: string, params?: any) => void;
@@ -14,6 +14,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   // Data State
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  
   const [expiringProposals, setExpiringProposals] = useState<Proposal[]>([]);
 
   // Filter States
@@ -22,50 +26,71 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [filterFaculty, setFilterFaculty] = useState<string>('ALL');
   const [filterDate, setFilterDate] = useState('');
 
-  useEffect(() => {
-    async function fetchData() {
-      if (user) {
-        setLoading(true);
-        try {
-          // Pass all roles to get inclusive list of proposals
-          let data = await db.getProposals(user.roles, user.id);
-          
-          // Sort by updated date desc
-          data.sort((a,b) => new Date(b.updatedDate).getTime() - new Date(a.updatedDate).getTime());
-          setProposals(data);
+  const fetchProposals = async (isLoadMore = false) => {
+    if (!user) return;
+    
+    try {
+        if (!isLoadMore) setLoading(true);
+        else setLoadingMore(true);
 
-          // Admin: Run background check for expiry
-          if (user.roles.includes(Role.ADMIN)) {
-             await db.checkExpiringCertificates();
-             
-             // Local check for UI display
-             const today = new Date();
-             const exp = data.filter(p => {
-                if (p.status !== ProposalStatus.APPROVED || !p.approvalDetail?.expiryDate) return false;
-                const expDate = new Date(p.approvalDetail.expiryDate);
-                const diffDays = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                return diffDays > 0 && diffDays <= 60; // Show warning for 60 days
-             });
-             setExpiringProposals(exp);
-          }
-
-        } catch (error) {
-          console.error("Failed to fetch proposals", error);
-        } finally {
-          setLoading(false);
+        const currentLastDoc = isLoadMore ? lastDoc : null;
+        const result = await db.getProposals(user.roles, user.id, currentLastDoc, 20); // Page size 20
+        
+        if (isLoadMore) {
+            setProposals(prev => [...prev, ...result.data]);
+        } else {
+            setProposals(result.data);
+            
+            // Background check for expiry (Only on initial load for Admins)
+            if (user.roles.includes(Role.ADMIN)) {
+                checkExpiry(result.data); // Pass initial data for check
+                db.checkExpiringCertificates();
+            }
         }
-      }
+        
+        setLastDoc(result.lastDoc);
+        // If we got fewer than requested, or lastDoc is null, we are done
+        setHasMore(result.data.length === 20 && result.lastDoc !== null);
+
+    } catch (error) {
+        console.error("Failed to fetch proposals", error);
+    } finally {
+        setLoading(false);
+        setLoadingMore(false);
     }
-    fetchData();
+  };
+
+  useEffect(() => {
+    if (user) {
+        fetchProposals(false);
+    }
   }, [user]);
 
-  if (!user) return null;
+  const checkExpiry = (data: Proposal[]) => {
+      const today = new Date();
+      const exp = data.filter(p => {
+        if (p.status !== ProposalStatus.APPROVED || !p.approvalDetail?.expiryDate) return false;
+        const expDate = new Date(p.approvalDetail.expiryDate);
+        const diffDays = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return diffDays > 0 && diffDays <= 60; // Show warning for 60 days
+      });
+      setExpiringProposals(exp);
+  };
+
+  if (!user) {
+      return (
+          <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+              <Loader2 className="animate-spin mb-2" size={32}/> 
+              <p>กำลังโหลดข้อมูลผู้ใช้งาน...</p>
+          </div>
+      );
+  }
 
   if (loading) {
      return <div className="flex justify-center items-center h-64 text-slate-400"><Loader2 className="animate-spin mr-2"/> กำลังโหลดข้อมูล...</div>;
   }
 
-  // Stats Logic
+  // Stats Logic (Note: Stats only reflect loaded data)
   const stats = {
     pending: proposals.filter(p => [ProposalStatus.IN_REVIEW, ProposalStatus.PENDING_ADVISOR, ProposalStatus.PENDING_ADMIN_CHECK, ProposalStatus.PENDING_DECISION].includes(p.status)).length,
     revision: proposals.filter(p => [ProposalStatus.REVISION_REQ, ProposalStatus.ADMIN_REJECTED].includes(p.status)).length,
@@ -194,7 +219,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-slate-700 whitespace-nowrap">รายการโครงการ</h3>
-            <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-xs">{filteredProposals.length}</span>
+            <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-xs">{filteredProposals.length} (จาก {proposals.length})</span>
           </div>
 
           <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
@@ -337,6 +362,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Load More */}
+        {hasMore && !searchTerm && filterStatus === 'ALL' && filterFaculty === 'ALL' && !filterDate && (
+            <div className="p-4 border-t border-slate-100 flex justify-center">
+                <button 
+                    onClick={() => fetchProposals(true)}
+                    disabled={loadingMore}
+                    className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors"
+                >
+                    {loadingMore ? <Loader2 className="animate-spin" size={16}/> : <ChevronDown size={16}/>}
+                    {loadingMore ? 'กำลังโหลด...' : 'โหลดข้อมูลเพิ่มเติม'}
+                </button>
+            </div>
+        )}
       </div>
     </div>
   );

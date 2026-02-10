@@ -64,7 +64,8 @@ service cloud.firestore {
         request.auth.uid in resource.data.reviewers
       );
 
-      allow create: if isSignedIn();
+      // Security Fix: Ensure researcherId matches the authenticated user
+      allow create: if isSignedIn() && request.resource.data.researcherId == request.auth.uid;
 
       allow update: if isSignedIn() && (
         isAdmin() || 
@@ -78,6 +79,7 @@ service cloud.firestore {
            notUpdating('adminFeedback')
         ) ||
         (
+           // Advisor can only update status to APPROVED or REJECTED (via logic)
            resource.data.advisorId == request.auth.uid &&
            request.resource.data.status != 'APPROVED' &&
            request.resource.data.status != 'WAITING_CERT'

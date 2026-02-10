@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Role, CAMPUSES, FACULTIES, SCHOOLS, hasPermission, Permission, User } from '../types';
@@ -58,6 +57,14 @@ const UserManagement: React.FC = () => {
       );
   }
 
+  // Helper to determine primary role (priority: ADMIN > REVIEWER > ADVISOR > RESEARCHER)
+  const getPrimaryRole = (roles: Role[]): Role => {
+    if (roles.includes(Role.ADMIN)) return Role.ADMIN;
+    if (roles.includes(Role.REVIEWER)) return Role.REVIEWER;
+    if (roles.includes(Role.ADVISOR)) return Role.ADVISOR;
+    return Role.RESEARCHER;
+  };
+
   const handleDelete = async (id: string, name: string) => {
     if (id === currentUser.id) {
         alert("ไม่สามารถระงับการใช้งานบัญชีของตนเองได้");
@@ -86,7 +93,7 @@ const UserManagement: React.FC = () => {
           }
           
           const updated = exists ? prev.roles.filter(r => r !== role) : [...prev.roles, role];
-          return { ...prev, roles: updated, role: updated[0] || Role.RESEARCHER };
+          return { ...prev, roles: updated, role: getPrimaryRole(updated) };
       });
   };
 
@@ -110,7 +117,7 @@ const UserManagement: React.FC = () => {
           }
 
           const updated = exists ? prev.roles.filter(r => r !== role) : [...prev.roles, role];
-          return { ...prev, roles: updated, role: updated[0] || Role.RESEARCHER };
+          return { ...prev, roles: updated, role: getPrimaryRole(updated) };
       });
   };
 
@@ -131,7 +138,7 @@ const UserManagement: React.FC = () => {
         alert(`เพิ่มผู้ใช้งาน ${newUser.name} เรียบร้อยแล้ว\nรหัสผ่านเริ่มต้น: ${finalPassword}`);
         fetchUsers();
         setIsAdding(false);
-        setNewUser({ ...newUser, name: '', email: '', password: '', roles: [Role.RESEARCHER] });
+        setNewUser({ ...newUser, name: '', email: '', password: '', roles: [Role.RESEARCHER], role: Role.RESEARCHER });
     } catch(err: any) {
         alert('เกิดข้อผิดพลาด: ' + err.message);
     }
@@ -146,7 +153,7 @@ const UserManagement: React.FC = () => {
           await db.updateUser(editingUser.id, {
               name: editingUser.name,
               roles: editingUser.roles,
-              role: editingUser.roles[0], // Primary role fallback
+              role: getPrimaryRole(editingUser.roles), // Ensure primary role is consistent with priority
               campus: editingUser.campus,
               faculty: editingUser.faculty
           });
@@ -176,6 +183,8 @@ const UserManagement: React.FC = () => {
       default: return 'bg-gray-100 text-gray-600';
     }
   };
+
+  const rolePriority = { [Role.ADMIN]: 0, [Role.REVIEWER]: 1, [Role.ADVISOR]: 2, [Role.RESEARCHER]: 3 };
 
   if(loading) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-blue-600" size={32} /></div>;
 
@@ -328,7 +337,11 @@ const UserManagement: React.FC = () => {
                     <td className="px-6 py-4"><div className="flex items-center"><div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold mr-3 text-sm">{user.name.charAt(0)}</div><div><div className="font-medium text-slate-900">{user.name}</div><div className="text-sm text-slate-500 flex items-center gap-1"><Mail size={12} /> {user.email}</div></div></div></td>
                     <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">
-                            {user.roles.map(r => (
+                            {user.roles
+                                .sort((a, b) => {
+                                    return (rolePriority[a] || 99) - (rolePriority[b] || 99);
+                                })
+                                .map(r => (
                                 <span key={r} className={`inline-flex items-center px-2 py-1 rounded border text-xs font-bold uppercase ${getRoleBadge(r)}`}>{r}</span>
                             ))}
                         </div>

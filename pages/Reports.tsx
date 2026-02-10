@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { db } from '../services/database';
@@ -16,7 +17,8 @@ const Reports: React.FC = () => {
     const fetchData = async () => {
        setLoading(true);
        try {
-           const data = await db.getProposals([Role.ADMIN], 'admin_placeholder'); 
+           // Fetch all for admin report, no pagination limit (use a large number for report overview)
+           const { data } = await db.getProposals([Role.ADMIN], 'admin_placeholder', null, 500); 
            setProposals(data);
 
            // Fetch Audit Logs and Surveys if admin

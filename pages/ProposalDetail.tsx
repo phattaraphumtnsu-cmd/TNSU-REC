@@ -1,8 +1,9 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Proposal, ProposalStatus, Role, Vote, Review, User, ReviewType, ReportType, Permission, hasPermission } from '../types';
-import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users, PenTool } from 'lucide-react';
+import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users, PenTool, X } from 'lucide-react';
 
 interface ProposalDetailProps {
   id: string;
@@ -38,6 +39,10 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
   const [revisionLink, setRevisionLink] = useState('');
   const [revisionNoteLink, setRevisionNoteLink] = useState('');
   const [confirmRevise, setConfirmRevise] = useState(false);
+
+  // Advisor Reject State
+  const [advisorRejectReason, setAdvisorRejectReason] = useState('');
+  const [showAdvisorReject, setShowAdvisorReject] = useState(false);
 
   // Progress Report State
   const [reportType, setReportType] = useState<ReportType>(ReportType.PROGRESS_6_MONTH);
@@ -79,6 +84,8 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
       setConfirmRevise(false);
       setRevisionLink('');
       setRevisionNoteLink('');
+      setShowAdvisorReject(false);
+      setAdvisorRejectReason('');
   };
 
   // Determine what feedback to show based on status
@@ -95,6 +102,13 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
     alert('อนุมัติให้นักศึกษาแล้ว');
     reloadProposal();
   };
+
+  const handleAdvisorReject = async () => {
+      if(!advisorRejectReason.trim()) return alert('กรุณาระบุเหตุผล');
+      await db.advisorRejectProposal(proposal.id, advisorRejectReason);
+      alert('ส่งคืนโครงการให้แก้ไขเรียบร้อยแล้ว');
+      reloadProposal();
+  }
 
   const handleAdminAssign = async () => {
     if (selectedReviewers.length === 0) return alert('เลือกกรรมการอย่างน้อย 1 ท่าน');
@@ -284,7 +298,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                    <h3 className="font-bold text-red-800">โปรดดำเนินการแก้ไข (Action Required)</h3>
                    <p className="text-sm text-red-700 mt-1">
                       {isRejectedByAdmin 
-                        ? 'เจ้าหน้าที่ได้ตรวจสอบเอกสารแล้วพบว่าไม่ครบถ้วนหรือต้องแก้ไข กรุณาดูรายละเอียดด้านล่างและส่งเอกสารใหม่'
+                        ? 'เจ้าหน้าที่/ที่ปรึกษา ได้ตรวจสอบเอกสารแล้วพบว่าไม่ครบถ้วนหรือต้องแก้ไข กรุณาดูรายละเอียดด้านล่างและส่งเอกสารใหม่'
                         : 'คณะกรรมการพิจารณาแล้วมีมติ "ให้แก้ไข" กรุณาปรับปรุงข้อมูลตามข้อเสนอแนะและส่งกลับเข้าระบบ'}
                    </p>
                 </div>
@@ -435,10 +449,10 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                       </div>
                       <div>
                           <h3 className={`font-bold text-lg ${isRejectedByAdmin ? 'text-red-900' : 'text-orange-900'}`}>
-                              {isRejectedByAdmin ? 'สิ่งที่ต้องแก้ไข (จากเจ้าหน้าที่)' : 'มติคณะกรรมการ: ให้แก้ไข (Revision Required)'}
+                              {isRejectedByAdmin ? 'สิ่งที่ต้องแก้ไข (จากเจ้าหน้าที่/ที่ปรึกษา)' : 'มติคณะกรรมการ: ให้แก้ไข (Revision Required)'}
                           </h3>
                           <p className={`text-sm ${isRejectedByAdmin ? 'text-red-700' : 'text-orange-700'}`}>
-                              {isRejectedByAdmin ? 'ข้อเสนอแนะจากเจ้าหน้าที่ (Admin Feedback)' : 'ข้อสรุปจากคณะกรรมการ (Committee Consensus)'}
+                              {isRejectedByAdmin ? 'ข้อเสนอแนะจากเจ้าหน้าที่ (Admin/Advisor Feedback)' : 'ข้อสรุปจากคณะกรรมการ (Committee Consensus)'}
                           </p>
                       </div>
                   </div>
@@ -649,107 +663,31 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                 </div>
              </div>
           )}
-        </div>
-
-        {/* Right: Actions */}
-        <div className="space-y-6">
-          {hasPermission(user.roles, Permission.APPROVE_AS_ADVISOR) && proposal.status === ProposalStatus.PENDING_ADVISOR && (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="font-bold mb-4">การดำเนินการ (ที่ปรึกษา)</h3>
-              <button onClick={handleAdvisorApprove} className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">อนุมัติให้นักศึกษา</button>
-            </div>
-          )}
-          {hasPermission(user.roles, Permission.ASSIGN_REVIEWERS) && proposal.status === ProposalStatus.PENDING_ADMIN_CHECK && (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-               <h3 className="font-bold mb-4">มอบหมายกรรมการ / ตรวจสอบ</h3>
-               <p className="text-xs text-slate-500 mb-2">ประเภท: <span className="font-semibold">{proposal.type}</span></p>
-               <div className="max-h-48 overflow-y-auto border rounded-lg mb-4">
-                  {reviewersList.map(r => (
-                    <label key={r.id} className="flex items-center p-3 hover:bg-slate-50 border-b last:border-0 cursor-pointer">
-                       <input type="checkbox" className="mr-3" checked={selectedReviewers.includes(r.id)}
-                          onChange={(e) => {
-                             if(e.target.checked) setSelectedReviewers([...selectedReviewers, r.id]);
-                             else setSelectedReviewers(selectedReviewers.filter(id => id !== r.id));
-                          }}
-                       />
-                       <div><div className="text-sm font-medium">{r.name}</div><div className="text-xs text-slate-400">{r.campus}</div></div>
-                    </label>
+          {/* Blind Review: Only show names if Admin. If Researcher/Advisor, hide names. */}
+          {user.roles.includes(Role.RESEARCHER) && !user.roles.includes(Role.ADMIN) && proposal.reviews && proposal.reviews.length > 0 && (
+             <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 mt-6">
+                <h3 className="font-semibold text-slate-800 mb-4">ความเห็นจากคณะกรรมการ ({proposal.reviews.length} ท่าน)</h3>
+                <div className="space-y-4">
+                  {proposal.reviews.map((r, idx) => (
+                    <div key={idx} className="bg-white p-4 rounded-lg shadow-sm">
+                       <div className="flex justify-between mb-2">
+                          {/* Blind Review: Hide Name */}
+                          <span className="font-medium text-slate-700">กรรมการท่านที่ {idx + 1}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${r.vote === Vote.APPROVE ? 'bg-green-100 text-green-700' : r.vote === Vote.FIX ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>{r.vote}</span>
+                       </div>
+                       <p className="text-slate-600 text-sm mb-2">{r.comment}</p>
+                       <div className="flex flex-wrap gap-2">
+                         {r.fileLink && (
+                            <a href={r.fileLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded">
+                               <Link2 size={12} /> เอกสารแนบจากกรรมการ
+                            </a>
+                         )}
+                         {/* Review Process Link usually generic, safe to show? Yes. */}
+                       </div>
+                    </div>
                   ))}
-               </div>
-               <button onClick={handleAdminAssign} className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 flex justify-center items-center gap-2 mb-4"><UserPlus size={18} /> ยืนยันมอบหมาย</button>
-               <div className="border-t pt-4">
-                  <p className="text-sm font-semibold mb-2 text-slate-700">ส่งคืนแก้ไข (เอกสารไม่ครบ)</p>
-                  <textarea className="w-full border p-2 rounded text-sm mb-2 focus:ring-2 focus:ring-red-200 outline-none border-slate-200" placeholder="ระบุสิ่งที่ต้องแก้ไข..." rows={2} value={adminPreFeedback} onChange={e => setAdminPreFeedback(e.target.value)}></textarea>
-                  <button onClick={handleAdminReturnDocs} className="w-full border border-red-300 text-red-600 py-2 rounded-lg hover:bg-red-50 text-sm flex items-center justify-center gap-2"><XCircle size={16} /> ส่งคืนแก้ไข</button>
-               </div>
-            </div>
-          )}
-          {hasPermission(user.roles, Permission.VOTE_AS_REVIEWER) && proposal.status === ProposalStatus.IN_REVIEW && proposal.reviewers.includes(user.id) && !proposal.reviews?.find(r => r.reviewerId === user.id) && (
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <h3 className="font-bold mb-4">ผลการพิจารณา</h3>
-                <div className="space-y-3 mb-4">
-                   {[Vote.APPROVE, Vote.FIX, Vote.REJECT].map(v => (
-                     <label key={v} className="flex items-center space-x-2"><input type="radio" name="vote" value={v} checked={vote === v} onChange={() => setVote(v)} /><span>{v === Vote.APPROVE ? 'สมควรอนุมัติ' : v === Vote.FIX ? 'ให้แก้ไข' : 'ไม่อนุมัติ'}</span></label>
-                   ))}
                 </div>
-                <textarea className="w-full border p-2 rounded-lg mb-4 text-sm" rows={4} placeholder="ข้อเสนอแนะเพิ่มเติม..." value={comment} onChange={e => setComment(e.target.value)}></textarea>
-                <div className="relative mb-2"><Link2 className="absolute left-3 top-2.5 text-slate-400" size={16} /><input type="url" placeholder="ลิงก์ไฟล์แนบประกอบ (ไม่บังคับ)" className="w-full border pl-10 pr-3 py-2 rounded-lg text-sm" value={reviewerLink} onChange={e => setReviewerLink(e.target.value)} /></div>
-                <div className="relative mb-4"><FileText className="absolute left-3 top-2.5 text-slate-400" size={16} /><input type="url" placeholder="ลิงก์รายละเอียดกระบวนการ (ถ้ามี)" className="w-full border pl-10 pr-3 py-2 rounded-lg text-sm" value={reviewProcessLink} onChange={e => setReviewProcessLink(e.target.value)} /></div>
-                <button onClick={handleReviewerSubmit} className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">ยืนยันผลการพิจารณา</button>
              </div>
-          )}
-          {hasPermission(user.roles, Permission.FINALIZE_DECISION) && proposal.status === ProposalStatus.PENDING_DECISION && (
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-purple-200 ring-2 ring-purple-50">
-                <h3 className="font-bold mb-2 text-purple-700"><PenTool size={18} className="inline mr-1"/> สรุปผลการพิจารณา</h3>
-                <div className="space-y-3 mb-4">
-                   <select className="w-full p-2 border rounded" value={adminDecision} onChange={(e) => setAdminDecision(e.target.value as Vote)}>
-                      <option value={Vote.APPROVE}>อนุมัติ (แจ้งผลผู้วิจัย & รอออกใบรับรอง)</option>
-                      <option value={Vote.FIX}>ให้แก้ไข (ส่งคืนผู้วิจัย)</option>
-                      <option value={Vote.REJECT}>ไม่อนุมัติ</option>
-                   </select>
-                </div>
-                <textarea className="w-full border p-2 rounded-lg mb-3 text-sm" rows={4} placeholder="ข้อความสรุปถึงผู้วิจัย (Feedback Text)..." value={adminFeedback} onChange={e => setAdminFeedback(e.target.value)}></textarea>
-                <div className="mb-4"><label className="block text-xs font-semibold text-purple-800 mb-1">ลิงก์ไฟล์ข้อเสนอแนะ (รวมจากกรรมการ)</label><div className="relative"><Link2 className="absolute left-3 top-2.5 text-slate-400" size={16} /><input type="url" className="w-full border pl-10 pr-3 py-2 rounded-lg text-sm" value={adminFileLink} onChange={e => setAdminFileLink(e.target.value)} /></div></div>
-                <button onClick={handleAdminFinalize} className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 font-medium">บันทึกและแจ้งผล</button>
-             </div>
-          )}
-          {hasPermission(user.roles, Permission.ISSUE_CERTIFICATE) && proposal.status === ProposalStatus.WAITING_CERT && (
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-teal-200 ring-2 ring-teal-50">
-                <h3 className="font-bold mb-2 text-teal-800 flex items-center gap-2"><ShieldCheck size={20} /> ออกใบรับรอง</h3>
-                
-                <p className="text-sm text-slate-600 mb-4">
-                    โครงการนี้ผ่านการอนุมัติแล้ว ขณะนี้อยู่ในขั้นตอนการออกใบรับรอง (ลงนาม)
-                </p>
-
-                <div className="flex gap-2 mb-4">
-                    <button onClick={() => onNavigate('certificate', { id: proposal.id })} className="flex-1 bg-white border border-teal-200 text-teal-700 py-2 rounded hover:bg-teal-50 flex justify-center items-center gap-2 text-sm">
-                        <Printer size={16} /> Preview E-Cert
-                    </button>
-                </div>
-
-                <div className="mb-4 relative">
-                    <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-slate-200"></div>
-                    </div>
-                    <div className="relative flex justify-center text-xs">
-                        <span className="bg-white px-2 text-slate-500">หรือ แนบลิงก์ไฟล์ที่ลงนามแล้ว</span>
-                    </div>
-                </div>
-
-                <div className="mb-4"><label className="block text-xs font-semibold text-slate-700 mb-1">ลิงก์ใบรับรอง (Google Drive)</label><div className="relative"><Link2 className="absolute left-3 top-2.5 text-slate-400" size={16} /><input type="url" className="w-full border pl-10 pr-3 py-2 rounded-lg text-sm" value={adminCertLink} onChange={e => setAdminCertLink(e.target.value)} /></div></div>
-                
-                <button onClick={handleAdminIssueCert} className="w-full bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 font-medium flex justify-center items-center gap-2"><FileCheck size={18} /> ยืนยันออกใบรับรอง (เสร็จสิ้น)</button>
-             </div>
-          )}
-          {proposal.status === ProposalStatus.APPROVED && (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-green-200">
-               <h3 className="font-bold mb-3 text-green-700">สถานะโครงการ</h3>
-               <div className="space-y-3 text-sm">
-                  <div className="flex justify-between items-center border-b border-green-50 pb-2"><span className="text-slate-500">เลขที่ใบรับรอง</span><span className="font-medium text-slate-800">{proposal.approvalDetail?.certificateNumber || proposal.certNumber}</span></div>
-                  <div className="flex justify-between items-center border-b border-green-50 pb-2"><span className="text-slate-500">วันที่รับรอง</span><span className="font-medium text-slate-800">{proposal.approvalDetail?.issuanceDate || proposal.approvalDate}</span></div>
-                  <div className="flex justify-between items-center border-b border-green-50 pb-2"><span className="text-slate-500">หมดอายุ</span><span className="font-medium text-slate-800">{proposal.approvalDetail?.expiryDate || 'N/A'}</span></div>
-               </div>
-            </div>
           )}
         </div>
       </div>
