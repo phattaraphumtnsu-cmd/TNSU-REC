@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { CAMPUSES, FACULTIES, SCHOOLS, SurveyResponse } from '../types';
-import { Save, Lock, AlertCircle, CheckCircle, UserCircle, RotateCw, AlertTriangle } from 'lucide-react';
+import { Save, Lock, AlertCircle, CheckCircle, UserCircle, RotateCw, AlertTriangle, Phone } from 'lucide-react';
 
 const UserProfile: React.FC = () => {
   const user = db.currentUser;
@@ -13,6 +13,7 @@ const UserProfile: React.FC = () => {
   // Profile Form State
   const [profileData, setProfileData] = useState({
      name: user?.name || '',
+     phoneNumber: user?.phoneNumber || '',
      campus: user?.campus || '',
      faculty: user?.faculty || ''
   });
@@ -184,6 +185,20 @@ const UserProfile: React.FC = () => {
                         <div>
                             <label className="block text-sm font-medium mb-1 text-slate-700">อีเมล (ไม่สามารถแก้ไขได้)</label>
                             <input type="text" value={user.email} disabled className="w-full bg-slate-100 border border-slate-200 p-2.5 rounded text-slate-500 cursor-not-allowed" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-slate-700">เบอร์โทรศัพท์</label>
+                            <div className="relative">
+                                <Phone size={16} className={`absolute left-3 top-3 ${isEditing ? 'text-slate-400' : 'text-slate-300'}`} />
+                                <input 
+                                    type="tel" 
+                                    value={profileData.phoneNumber} 
+                                    onChange={e => setProfileData({...profileData, phoneNumber: e.target.value})}
+                                    disabled={!isEditing}
+                                    placeholder="08X-XXXXXXX"
+                                    className={`w-full pl-10 p-2.5 rounded border ${isEditing ? 'border-blue-300 bg-white' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
+                                />
+                            </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium mb-1 text-slate-700">วิทยาเขต/โรงเรียน</label>

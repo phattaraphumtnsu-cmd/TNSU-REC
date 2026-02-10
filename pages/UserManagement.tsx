@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Role, CAMPUSES, FACULTIES, SCHOOLS, hasPermission, Permission, User } from '../types';
-import { Trash2, UserPlus, Search, Shield, X, Check, Mail, MapPin, Lock, Filter, Loader2, AlertTriangle, Ban, Key, RotateCcw, Edit } from 'lucide-react';
+import { Trash2, UserPlus, Search, Shield, X, Check, Mail, MapPin, Lock, Filter, Loader2, AlertTriangle, Ban, Key, RotateCcw, Edit, Phone } from 'lucide-react';
 
 const UserManagement: React.FC = () => {
   const currentUser = db.currentUser;
@@ -19,6 +19,7 @@ const UserManagement: React.FC = () => {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
+    phoneNumber: '',
     role: Role.RESEARCHER, // Default primary
     roles: [Role.RESEARCHER], // Array for multi-role
     campus: CAMPUSES[0],
@@ -138,7 +139,7 @@ const UserManagement: React.FC = () => {
         alert(`เพิ่มผู้ใช้งาน ${newUser.name} เรียบร้อยแล้ว\nรหัสผ่านเริ่มต้น: ${finalPassword}`);
         fetchUsers();
         setIsAdding(false);
-        setNewUser({ ...newUser, name: '', email: '', password: '', roles: [Role.RESEARCHER], role: Role.RESEARCHER });
+        setNewUser({ ...newUser, name: '', email: '', phoneNumber: '', password: '', roles: [Role.RESEARCHER], role: Role.RESEARCHER });
     } catch(err: any) {
         alert('เกิดข้อผิดพลาด: ' + err.message);
     }
@@ -152,6 +153,7 @@ const UserManagement: React.FC = () => {
       try {
           await db.updateUser(editingUser.id, {
               name: editingUser.name,
+              phoneNumber: editingUser.phoneNumber,
               roles: editingUser.roles,
               role: getPrimaryRole(editingUser.roles), // Ensure primary role is consistent with priority
               campus: editingUser.campus,
@@ -212,6 +214,11 @@ const UserManagement: React.FC = () => {
             <div><label className="block text-sm font-medium text-slate-700 mb-1">อีเมล</label><input required type="email" className="w-full border p-2.5 rounded-lg" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="email@tnsu.ac.th" /></div>
             
             <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">เบอร์โทรศัพท์ (จำเป็น)</label>
+                <input required type="text" className="w-full border p-2.5 rounded-lg" value={newUser.phoneNumber} onChange={e => setNewUser({...newUser, phoneNumber: e.target.value})} placeholder="08X-XXXXXXX" />
+            </div>
+
+            <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-2">บทบาท (เลือกได้มากกว่า 1)</label>
                 <div className="flex gap-4 flex-wrap">
                     {Object.values(Role).map(r => (
@@ -262,9 +269,13 @@ const UserManagement: React.FC = () => {
                          <label className="block text-sm font-medium text-slate-700 mb-1">อีเมล (Read Only)</label>
                          <input disabled type="text" className="w-full bg-slate-100 border p-2.5 rounded-lg text-slate-500" value={editingUser.email} />
                     </div>
-                    <div className="md:col-span-2">
+                    <div>
                          <label className="block text-sm font-medium text-slate-700 mb-1">ชื่อ-นามสกุล</label>
                          <input required type="text" className="w-full border p-2.5 rounded-lg" value={editingUser.name} onChange={e => setEditingUser({...editingUser, name: e.target.value})} />
+                    </div>
+                    <div>
+                         <label className="block text-sm font-medium text-slate-700 mb-1">เบอร์โทรศัพท์</label>
+                         <input type="text" className="w-full border p-2.5 rounded-lg" value={editingUser.phoneNumber || ''} onChange={e => setEditingUser({...editingUser, phoneNumber: e.target.value})} placeholder="08X-XXXXXXX" />
                     </div>
                     
                     <div className="md:col-span-2">
@@ -334,7 +345,16 @@ const UserManagement: React.FC = () => {
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-4"><div className="flex items-center"><div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold mr-3 text-sm">{user.name.charAt(0)}</div><div><div className="font-medium text-slate-900">{user.name}</div><div className="text-sm text-slate-500 flex items-center gap-1"><Mail size={12} /> {user.email}</div></div></div></td>
+                    <td className="px-6 py-4">
+                        <div className="flex items-center">
+                            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold mr-3 text-sm">{user.name.charAt(0)}</div>
+                            <div>
+                                <div className="font-medium text-slate-900">{user.name}</div>
+                                <div className="text-sm text-slate-500 flex items-center gap-1"><Mail size={12} /> {user.email}</div>
+                                {user.phoneNumber && <div className="text-sm text-slate-500 flex items-center gap-1"><Phone size={12} /> {user.phoneNumber}</div>}
+                            </div>
+                        </div>
+                    </td>
                     <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">
                             {user.roles

@@ -99,6 +99,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phoneNumber?: string; // Added field
   role: Role; // Deprecated: Kept for backward compatibility, use 'roles' instead
   roles: Role[]; // New: Support multiple roles
   type?: UserType;
@@ -142,6 +143,7 @@ export interface Proposal {
   duration?: string; // Added
   researcherId: string;
   researcherName: string;
+  researcherPhone?: string; // Added field for snapshotting contact info
   advisorId?: string;
   advisorName?: string;
   type: ReviewType;

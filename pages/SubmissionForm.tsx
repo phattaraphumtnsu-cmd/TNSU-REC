@@ -80,6 +80,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
           paymentSlipLink: isStudent ? undefined : formData.paymentSlipLink, 
           researcherId: user.id,
           researcherName: user.name,
+          researcherPhone: user.phoneNumber, // Include Phone Number
           faculty: user.faculty,
           campus: user.campus,
           advisorId: isStudent ? formData.advisorId : undefined,

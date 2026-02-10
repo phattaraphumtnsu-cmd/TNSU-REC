@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { db } from '../services/database';
 import { CAMPUSES, FACULTIES, Role, SCHOOLS, UserType, User } from '../types';
-import { User as UserIcon, Lock, HelpCircle, ArrowLeft, Mail, Key, Loader2 } from 'lucide-react';
+import { User as UserIcon, Lock, HelpCircle, ArrowLeft, Mail, Key, Loader2, Phone } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -22,6 +23,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
   // Register State
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
   const [regPass, setRegPass] = useState('');
   const [regConfirmPass, setRegConfirmPass] = useState('');
   const [regRole, setRegRole] = useState<Role>(Role.RESEARCHER);
@@ -78,6 +80,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
       const newUser = await db.register({
         name: regName,
         email: regEmail,
+        phoneNumber: regPhone,
         role: regRole,
         roles: [regRole],
         type: regRole === Role.RESEARCHER ? regType : undefined,
@@ -265,6 +268,21 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">อีเมล</label>
                 <input type="email" required value={regEmail} onChange={e => setRegEmail(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">เบอร์โทรศัพท์ (จำเป็น) <span className="text-red-500">*</span></label>
+                <div className="relative">
+                    <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
+                    <input 
+                        type="tel" 
+                        required 
+                        value={regPhone} 
+                        onChange={e => setRegPhone(e.target.value)} 
+                        className="w-full pl-10 pr-4 p-2.5 border border-slate-300 rounded-lg" 
+                        placeholder="08X-XXXXXXX"
+                    />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

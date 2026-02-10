@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Proposal, ProposalStatus, Role, Vote, Review, User, ReviewType, ReportType, Permission, hasPermission, ReviewerStatus } from '../types';
-import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users, PenTool, X, Award, UserCheck, Gavel, Search, Briefcase, RotateCcw, Shield, Trash2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ExternalLink, CheckCircle, XCircle, AlertTriangle, FileText, UserPlus, Send, MessageSquare, Clock, Calendar, ShieldCheck, Link2, History, AlertCircle, FileCheck, Loader2, Printer, Info, ChevronDown, ChevronUp, Users, PenTool, X, Award, UserCheck, Gavel, Search, Briefcase, RotateCcw, Shield, Trash2, RefreshCw, Phone } from 'lucide-react';
 
 interface ProposalDetailProps {
   id: string;
@@ -607,6 +607,17 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                 <div><span className="text-slate-500 block">วันที่ยื่น:</span> {proposal.submissionDate}</div>
                 {proposal.advisorName && <div><span className="text-slate-500 block">ที่ปรึกษา:</span> {proposal.advisorName}</div>}
                 
+                {/* Contact Info for Admin/Reviewer */}
+                {(user.roles.includes(Role.ADMIN) || user.roles.includes(Role.REVIEWER)) && proposal.researcherPhone && (
+                    <div className="col-span-2 mt-2 bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-center gap-3">
+                        <Phone size={18} className="text-blue-600" />
+                        <div>
+                            <span className="text-xs text-blue-700 block font-bold">ช่องทางติดต่อผู้วิจัย (Contact Researcher)</span>
+                            <span className="text-sm font-medium text-slate-800">{proposal.researcherPhone}</span>
+                        </div>
+                    </div>
+                )}
+
                 {/* NEW FIELDS */}
                 <div className="col-span-2 mt-2 pt-2 border-t border-slate-100">
                     <span className="text-slate-500 block font-medium mb-1">วัตถุประสงค์:</span> 
@@ -689,7 +700,7 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
              )}
           </div>
 
-          {/* New: Review Progress for Admin */}
+          {/* New: Review Progress for Admin (IMPROVED to show comments and links) */}
           {user.roles.includes(Role.ADMIN) && proposal.reviewers && proposal.reviewers.length > 0 && (
              <div className="bg-white rounded-xl shadow-sm border border-blue-200 overflow-hidden mb-6">
                <div className="bg-blue-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
@@ -707,45 +718,64 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                      const acceptanceStatus = proposal.reviewerStates?.[reviewerId] || ReviewerStatus.PENDING;
 
                      return (
-                        <div key={reviewerId} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50">
-                           <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${reviewData ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
-                                 {index + 1}
-                              </div>
-                              <div>
-                                 <div className="font-medium text-slate-800">
-                                    {reviewerInfo ? reviewerInfo.name : 'Unknown Reviewer'}
-                                 </div>
-                                 <div className="text-xs text-slate-500 flex items-center gap-2">
-                                    {reviewerInfo?.faculty || 'Reviewer'}
-                                    {/* Acceptance Status Badge */}
-                                    {acceptanceStatus === ReviewerStatus.PENDING && <span className="bg-yellow-100 text-yellow-800 px-1.5 rounded-[4px] text-[10px]">รอตอบรับ</span>}
-                                    {acceptanceStatus === ReviewerStatus.ACCEPTED && <span className="bg-green-100 text-green-800 px-1.5 rounded-[4px] text-[10px]">ตอบรับแล้ว</span>}
-                                    {acceptanceStatus === ReviewerStatus.DECLINED && <span className="bg-red-100 text-red-800 px-1.5 rounded-[4px] text-[10px]">ปฏิเสธ</span>}
-                                 </div>
-                              </div>
+                        <div key={reviewerId} className="px-6 py-4 flex flex-col gap-3 hover:bg-slate-50">
+                           <div className="flex items-center justify-between">
+                               <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${reviewData ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                                     {index + 1}
+                                  </div>
+                                  <div>
+                                     <div className="font-medium text-slate-800">
+                                        {reviewerInfo ? reviewerInfo.name : 'Unknown Reviewer'}
+                                     </div>
+                                     <div className="text-xs text-slate-500 flex items-center gap-2">
+                                        {reviewerInfo?.faculty || 'Reviewer'}
+                                        {/* Acceptance Status Badge */}
+                                        {acceptanceStatus === ReviewerStatus.PENDING && <span className="bg-yellow-100 text-yellow-800 px-1.5 rounded-[4px] text-[10px]">รอตอบรับ</span>}
+                                        {acceptanceStatus === ReviewerStatus.ACCEPTED && <span className="bg-green-100 text-green-800 px-1.5 rounded-[4px] text-[10px]">ตอบรับแล้ว</span>}
+                                        {acceptanceStatus === ReviewerStatus.DECLINED && <span className="bg-red-100 text-red-800 px-1.5 rounded-[4px] text-[10px]">ปฏิเสธ</span>}
+                                     </div>
+                                  </div>
+                               </div>
+                               <div>
+                                  {reviewData ? (
+                                     <div className="text-right">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
+                                           reviewData.vote === Vote.APPROVE ? 'bg-green-100 text-green-700' : 
+                                           reviewData.vote === Vote.FIX ? 'bg-orange-100 text-orange-700' : 
+                                           'bg-red-100 text-red-700'
+                                        }`}>
+                                           {reviewData.vote === Vote.APPROVE ? <CheckCircle size={12}/> : <AlertCircle size={12}/>}
+                                           {reviewData.vote}
+                                        </span>
+                                        <div className="text-[10px] text-slate-400 mt-1">
+                                           {new Date(reviewData.submittedAt).toLocaleDateString('th-TH')}
+                                        </div>
+                                     </div>
+                                  ) : (
+                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-500">
+                                        <Clock size={12} /> รอพิจารณา
+                                     </span>
+                                  )}
+                               </div>
                            </div>
-                           <div>
-                              {reviewData ? (
-                                 <div className="text-right">
-                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
-                                       reviewData.vote === Vote.APPROVE ? 'bg-green-100 text-green-700' : 
-                                       reviewData.vote === Vote.FIX ? 'bg-orange-100 text-orange-700' : 
-                                       'bg-red-100 text-red-700'
-                                    }`}>
-                                       {reviewData.vote === Vote.APPROVE ? <CheckCircle size={12}/> : <AlertCircle size={12}/>}
-                                       {reviewData.vote}
-                                    </span>
-                                    <div className="text-[10px] text-slate-400 mt-1">
-                                       {new Date(reviewData.submittedAt).toLocaleDateString('th-TH')}
-                                    </div>
-                                 </div>
-                              ) : (
-                                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-500">
-                                    <Clock size={12} /> รอพิจารณา
-                                 </span>
-                              )}
-                           </div>
+                           
+                           {/* Review Content Detail (Admin View) */}
+                           {reviewData && (
+                                <div className="ml-11 bg-slate-50 p-3 rounded-lg border border-slate-100 space-y-2">
+                                    {reviewData.comment && (
+                                        <div className="text-sm text-slate-600">
+                                            <span className="font-semibold text-slate-700 mr-1">ความเห็น:</span> 
+                                            {reviewData.comment}
+                                        </div>
+                                    )}
+                                    {reviewData.fileLink && (
+                                        <a href={reviewData.fileLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs text-blue-600 hover:text-blue-800 hover:underline bg-white px-2 py-1 rounded border border-blue-100 w-fit">
+                                            <Link2 size={12} /> เอกสารแนบจากกรรมการ (Reviewer Attachment)
+                                        </a>
+                                    )}
+                                </div>
+                           )}
                         </div>
                      );
                   })}
@@ -1180,14 +1210,18 @@ const ProposalDetail: React.FC<ProposalDetailProps> = ({ id, onNavigate }) => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์ (ลิงก์)</label>
-                                    <input 
-                                        type="url"
-                                        className="w-full border border-slate-300 rounded-lg p-2 text-sm"
-                                        placeholder="https://..."
-                                        value={reviewerLink}
-                                        onChange={e => setReviewerLink(e.target.value)}
-                                    />
+                                    <label className="block text-sm font-semibold text-slate-700 mb-2">เอกสารข้อเสนอแนะเพิ่มเติม (ถ้ามี)</label>
+                                    <div className="relative">
+                                        <Link2 className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                                        <input 
+                                            type="url"
+                                            className="w-full border border-slate-300 rounded-lg pl-9 p-2 text-sm"
+                                            placeholder="https://drive.google.com/..."
+                                            value={reviewerLink}
+                                            onChange={e => setReviewerLink(e.target.value)}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">ลิงก์ Google Drive หรือไฟล์ PDF ที่มีข้อคิดเห็น (เพื่อให้ Admin รวบรวมส่งผู้วิจัย)</p>
                                 </div>
 
                                 <button 
