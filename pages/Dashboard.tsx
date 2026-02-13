@@ -34,7 +34,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         else setLoadingMore(true);
 
         const currentLastDoc = isLoadMore ? lastDoc : null;
-        const result = await db.getProposals(user.roles, user.id, currentLastDoc, 20); // Page size 20
+        
+        // PASS FILTERS TO SERVER
+        const result = await db.getProposals(
+            user.roles, 
+            user.id, 
+            currentLastDoc, 
+            20, 
+            filterStatus, 
+            filterFaculty
+        ); 
         
         if (isLoadMore) {
             setProposals(prev => [...prev, ...result.data]);
@@ -54,8 +63,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     }
   };
 
+  // Re-fetch when filters change (Resetting list)
   useEffect(() => {
     if (user) {
+        setProposals([]);
+        setLastDoc(null);
+        setHasMore(true);
         fetchProposals(false);
         
         // Fetch expiring proposals if Admin
@@ -67,7 +80,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             fetchExpiring();
         }
     }
-  }, [user]);
+  }, [user, filterStatus, filterFaculty]); // Dependencies trigger reload
 
   const handleDeleteProposal = async (proposalId: string, title: string) => {
       if (window.confirm(`คุณแน่ใจหรือไม่ที่จะลบโครงการ "${title}"?\nการกระทำนี้ไม่สามารถยกเลิกได้`)) {
@@ -91,11 +104,23 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       );
   }
 
-  if (loading) {
-     return <div className="flex justify-center items-center h-64 text-slate-400"><Loader2 className="animate-spin mr-2"/> กำลังโหลดข้อมูล...</div>;
-  }
+  // Client-side filtering logic remains ONLY for SearchTerm and Date
+  // (Status and Faculty are now handled on server)
+  const filteredProposals = proposals.filter(p => {
+    const searchLower = searchTerm.toLowerCase();
+    const matchSearch = 
+      (p.code?.toLowerCase().includes(searchLower) || false) ||
+      p.titleTh.toLowerCase().includes(searchLower) ||
+      p.titleEn.toLowerCase().includes(searchLower) ||
+      p.researcherName.toLowerCase().includes(searchLower);
 
-  // Stats Logic (Note: Stats only reflect loaded data)
+    const matchDate = !filterDate || p.submissionDate === filterDate;
+
+    return matchSearch && matchDate;
+  });
+
+  // Note: Stats now only reflect loaded data (which is filtered). 
+  // To get global stats, we'd need a separate aggregate query, but for now this visualizes the current view.
   const stats = {
     pending: proposals.filter(p => [ProposalStatus.IN_REVIEW, ProposalStatus.PENDING_ADVISOR, ProposalStatus.PENDING_ADMIN_CHECK, ProposalStatus.PENDING_DECISION, ProposalStatus.RENEWAL_REQUESTED].includes(p.status)).length,
     revision: proposals.filter(p => [ProposalStatus.REVISION_REQ, ProposalStatus.ADMIN_REJECTED].includes(p.status)).length,
@@ -106,7 +131,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const getStatusColor = (status: ProposalStatus) => {
     switch (status) {
       case ProposalStatus.APPROVED: return 'bg-green-100 text-green-700 border-green-200';
-      case ProposalStatus.WAITING_CERT: return 'bg-teal-100 text-teal-800 border-teal-200'; // Distinct color for waiting cert
+      case ProposalStatus.WAITING_CERT: return 'bg-teal-100 text-teal-800 border-teal-200';
       case ProposalStatus.REJECTED: return 'bg-red-100 text-red-700 border-red-200';
       case ProposalStatus.REVISION_REQ:
       case ProposalStatus.ADMIN_REJECTED: return 'bg-orange-100 text-orange-700 border-orange-200';
@@ -117,16 +142,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     }
   };
 
-  // Helper to determine the user's relationship to the proposal
   const getRelationBadge = (p: Proposal) => {
       const relations = [];
       if (p.researcherId === user.id) relations.push({ label: 'เจ้าของ', icon: User, color: 'bg-blue-50 text-blue-700 border-blue-100' });
       if (p.advisorId === user.id) relations.push({ label: 'ที่ปรึกษา', icon: Shield, color: 'bg-orange-50 text-orange-700 border-orange-100' });
       if (p.reviewers.includes(user.id)) relations.push({ label: 'กรรมการ', icon: Gavel, color: 'bg-purple-50 text-purple-700 border-purple-100' });
       
-      // If user sees this ONLY because they are Admin (and not involved otherwise)
       if (relations.length === 0 && user.roles.includes(Role.ADMIN)) {
-          return null; // Or show specific "Admin View" badge if needed
+          return null;
       }
 
       return (
@@ -139,22 +162,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
       );
   };
-
-  // Filter Logic
-  const filteredProposals = proposals.filter(p => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchSearch = 
-      (p.code?.toLowerCase().includes(searchLower) || false) ||
-      p.titleTh.toLowerCase().includes(searchLower) ||
-      p.titleEn.toLowerCase().includes(searchLower) ||
-      p.researcherName.toLowerCase().includes(searchLower);
-
-    const matchStatus = filterStatus === 'ALL' || p.status === filterStatus;
-    const matchDate = !filterDate || p.submissionDate === filterDate;
-    const matchFaculty = filterFaculty === 'ALL' || p.faculty === filterFaculty;
-
-    return matchSearch && matchStatus && matchDate && matchFaculty;
-  });
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -183,7 +190,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <p className="text-slate-500">ภาพรวมการดำเนินงานจริยธรรมการวิจัย</p>
         </div>
         
-        {/* Only show Submit button if user has RESEARCHER role */}
         {user.roles.includes(Role.RESEARCHER) && (
             <button 
                 onClick={() => onNavigate('submit')}
@@ -317,6 +323,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </div>
 
         <div className="overflow-x-auto">
+          {loading ? (
+             <div className="flex justify-center items-center h-64 text-slate-400"><Loader2 className="animate-spin mr-2"/> กำลังโหลดข้อมูล...</div>
+          ) : (
           <table className="w-full">
             <thead className="bg-slate-50 text-slate-500 text-sm font-medium uppercase tracking-wider">
               <tr>
@@ -415,10 +424,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               )}
             </tbody>
           </table>
+          )}
         </div>
         
         {/* Pagination Load More */}
-        {hasMore && !searchTerm && filterStatus === 'ALL' && filterFaculty === 'ALL' && !filterDate && (
+        {hasMore && !searchTerm && !filterDate && (
             <div className="p-4 border-t border-slate-100 flex justify-center">
                 <button 
                     onClick={() => fetchProposals(true)}
