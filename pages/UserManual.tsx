@@ -156,7 +156,7 @@ const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
                           <div>
                               <span className="font-bold text-red-800 text-sm">กรณี "ให้แก้ไข" (Revision Required)</span>
                               <p className="text-xs text-red-700 mt-1">
-                                  นักวิจัยต้องแก้ไขเอกสารและส่งลิงก์ใหม่ -> กลับไปขั้นตอนที่ 2 (Admin Check)
+                                  นักวิจัยต้องแก้ไขเอกสารและส่งลิงก์ใหม่ &rarr; กลับไปขั้นตอนที่ 2 (Admin Check)
                               </p>
                           </div>
                       </div>
@@ -220,7 +220,7 @@ const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
                         <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg flex-shrink-0">3</div>
                         <div>
                             <h5 className="font-bold text-slate-800 text-lg">คัดลอกลิงก์ (Copy Link)</h5>
-                            <p className="text-sm text-slate-600 mt-1">คลิกขวาที่โฟลเดอร์ -> Share -> เปลี่ยน General access เป็น <strong>Anyone with the link</strong> -> Copy Link เพื่อนำมาวางในระบบ</p>
+                            <p className="text-sm text-slate-600 mt-1">คลิกขวาที่โฟลเดอร์ &rarr; Share &rarr; เปลี่ยน General access เป็น <strong>Anyone with the link</strong> &rarr; Copy Link เพื่อนำมาวางในระบบ</p>
                         </div>
                     </div>
                 </div>
@@ -248,7 +248,7 @@ const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
                  <div className="border border-slate-200 rounded-xl p-5 hover:border-blue-300 transition-colors">
                     <h4 className="font-bold text-blue-700 mb-2 flex items-center gap-2">2. ยื่นคำขอ (Submit)</h4>
                     <p className="text-sm text-slate-600">
-                        เมนู "ยื่นคำขอใหม่" -> กรอกข้อมูลโครงการ -> วางลิงก์ Google Drive -> (ถ้านักศึกษา) เลือกที่ปรึกษา -> (ถ้าบุคลากร) แนบลิงก์สลิปโอนเงิน -> กดส่ง
+                        เมนู "ยื่นคำขอใหม่" &rarr; กรอกข้อมูลโครงการ &rarr; วางลิงก์ Google Drive &rarr; (ถ้านักศึกษา) เลือกที่ปรึกษา &rarr; (ถ้าบุคลากร) แนบลิงก์สลิปโอนเงิน &rarr; กดส่ง
                     </p>
                  </div>
 
@@ -270,7 +270,7 @@ const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
                     <p className="text-sm text-slate-600">
                         หากสถานะเป็น <strong>"แก้ไขตามข้อเสนอแนะ"</strong> หรือ <strong>"เอกสารไม่ถูกต้อง"</strong>
                         <br/>
-                        ให้คลิกเข้าไปดูรายละเอียด -> อ่านคอมเมนต์ -> แก้ไขไฟล์ใน Drive -> นำลิงก์ไฟล์ใหม่มาวางในช่อง "ส่งแบบขอแก้ไข"
+                        ให้คลิกเข้าไปดูรายละเอียด &rarr; อ่านคอมเมนต์ &rarr; แก้ไขไฟล์ใน Drive &rarr; นำลิงก์ไฟล์ใหม่มาวางในช่อง "ส่งแบบขอแก้ไข"
                     </p>
                  </div>
               </div>
@@ -304,7 +304,7 @@ const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
                         <p>ท่านมีหน้าที่ <strong>"คัดกรองเบื้องต้น"</strong> โครงการของนักศึกษาในที่ปรึกษาของท่าน</p>
                         <ol className="list-decimal pl-5 space-y-2 bg-white p-4 rounded-lg border border-yellow-100">
                             <li>เมื่อนักศึกษายื่นคำขอ ระบบจะส่งอีเมลแจ้งเตือนท่าน</li>
-                            <li>เข้าสู่ระบบ -> แดชบอร์ด -> รายการที่สถานะ <strong>"รอที่ปรึกษาอนุมัติ"</strong></li>
+                            <li>เข้าสู่ระบบ &rarr; แดชบอร์ด &rarr; รายการที่สถานะ <strong>"รอที่ปรึกษาอนุมัติ"</strong></li>
                             <li>ตรวจสอบไฟล์เอกสารจากลิงก์ Google Drive</li>
                             <li>
                                 <strong>กรณีผ่าน:</strong> กดปุ่ม "อนุมัติโครงการ (Approve)" เพื่อส่งต่อให้ Admin

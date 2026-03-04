@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Role, CAMPUSES, FACULTIES, SCHOOLS, hasPermission, Permission, User } from '../types';
-import { Trash2, UserPlus, Search, Shield, X, Check, Mail, MapPin, Lock, Filter, Loader2, AlertTriangle, Ban, Key, RotateCcw, Edit, Phone } from 'lucide-react';
+import { Trash2, UserPlus, Search, Shield, X, Check, Mail, MapPin, Lock, Filter, Loader2, AlertTriangle, Ban, Key, RotateCcw, Edit, Phone, FileText, Download } from 'lucide-react';
 
 const UserManagement: React.FC = () => {
   const currentUser = db.currentUser;
@@ -132,6 +132,125 @@ const UserManagement: React.FC = () => {
       });
   };
 
+  // CSV Import State
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleDownloadTemplate = () => {
+    const headers = ['name,email,phoneNumber,role,campus,faculty,password'];
+    const example = ['ดร.ตัวอย่าง ใจดี,example@tnsu.ac.th,0812345678,RESEARCHER,วิทยาเขตเชียงใหม่,คณะศึกษาศาสตร์,password123'];
+    const csvContent = headers.concat(example).join("\n");
+    
+    // Add BOM (\uFEFF) so Excel opens it as UTF-8 correctly
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "user_import_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    const reader = new FileReader();
+    
+    reader.onload = async (event) => {
+        try {
+            // Remove BOM if present
+            const text = (event.target?.result as string).replace(/^\uFEFF/, '');
+            const lines = text.split(/\r\n|\n/); // Handle both CRLF and LF
+            const headers = lines[0].split(',').map(h => h.trim());
+            
+            // Basic validation of headers
+            if (!headers.includes('email') || !headers.includes('name')) {
+                throw new Error('รูปแบบไฟล์ไม่ถูกต้อง (ต้องมีคอลัมน์ name และ email เป็นอย่างน้อย)');
+            }
+
+            let successCount = 0;
+            let failCount = 0;
+            const errors: string[] = [];
+
+            // Process each line (skip header)
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                const values = line.split(',').map(v => v.trim());
+                const userData: any = {};
+                
+                headers.forEach((header, index) => {
+                    userData[header] = values[index];
+                });
+
+                // Validate required fields
+                if (!userData.email || !userData.name) {
+                    failCount++;
+                    errors.push(`แถวที่ ${i + 1}: ข้อมูลไม่ครบถ้วน`);
+                    continue;
+                }
+
+                try {
+                    // Parse roles (support multiple separated by | or ;)
+                    let roles: Role[] = [Role.RESEARCHER];
+                    if (userData.role) {
+                        // Split by | or ;
+                        const rawRoles = userData.role.split(/[|;]/).map((r: string) => r.trim());
+                        // Filter only valid roles
+                        const validRoles = rawRoles.filter((r: string) => Object.values(Role).includes(r as Role)) as Role[];
+                        
+                        if (validRoles.length > 0) {
+                            roles = validRoles;
+                        }
+                    }
+
+                    // Determine primary role
+                    const primaryRole = getPrimaryRole(roles);
+
+                    // Default password if not provided
+                    const password = userData.password || 'password123';
+
+                    await db.register({
+                        name: userData.name,
+                        email: userData.email,
+                        phoneNumber: userData.phoneNumber || '',
+                        role: primaryRole,
+                        roles: roles,
+                        campus: userData.campus || CAMPUSES[0],
+                        faculty: userData.faculty || FACULTIES[0]
+                    }, password);
+                    
+                    successCount++;
+                } catch (err: any) {
+                    failCount++;
+                    errors.push(`แถวที่ ${i + 1} (${userData.email}): ${err.message}`);
+                }
+            }
+
+            let message = `นำเข้าข้อมูลเสร็จสิ้น\n- สำเร็จ: ${successCount} รายการ\n- ล้มเหลว: ${failCount} รายการ`;
+            if (errors.length > 0) {
+                message += `\n\nรายละเอียดข้อผิดพลาด:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...และอื่นๆ' : ''}`;
+            }
+            
+            alert(message);
+            fetchUsers();
+
+        } catch (error: any) {
+            alert('เกิดข้อผิดพลาดในการอ่านไฟล์: ' + error.message);
+        } finally {
+            setImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    reader.readAsText(file);
+  };
+
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if(newUser.roles.length === 0) {
@@ -214,13 +333,42 @@ const UserManagement: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-800">จัดการผู้ใช้งาน</h2>
           <p className="text-slate-500">เพิ่ม ระงับ และแก้ไขสิทธิ์การเข้าใช้งานระบบ</p>
         </div>
-        <button 
-          onClick={() => setIsAdding(!isAdding)}
-          className={`${isAdding ? 'bg-slate-200 text-slate-700' : 'bg-blue-600 text-white hover:bg-blue-700'} px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors font-medium`}
-        >
-          {isAdding ? <X size={20}/> : <UserPlus size={20}/>}
-          {isAdding ? 'ยกเลิก' : 'เพิ่มผู้ใช้งาน'}
-        </button>
+        <div className="flex gap-2">
+            <input 
+                type="file" 
+                ref={fileInputRef}
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+            />
+            <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="bg-green-600 text-white hover:bg-green-700 px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors font-medium shadow-sm disabled:opacity-50"
+            >
+                {importing ? <Loader2 size={20} className="animate-spin"/> : <FileText size={20}/>}
+                นำเข้า CSV
+            </button>
+            <button 
+                onClick={handleDownloadTemplate}
+                className="bg-white text-slate-600 border border-slate-300 hover:bg-slate-50 px-3 py-2.5 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm group relative"
+                title="ดาวน์โหลดไฟล์ตัวอย่าง"
+            >
+                <Download size={18}/>
+                <div className="absolute top-full right-0 mt-2 w-64 p-2 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                    แนะนำให้ใช้ <b>Google Sheets</b> หรือ <b>Notepad</b> ในการแก้ไขไฟล์เพื่อป้องกันภาษาไทยเพี้ยน (หากใช้ Excel ต้องบันทึกเป็น CSV UTF-8)
+                    <br/><br/>
+                    *กรณีมีหลายบทบาท ให้คั่นด้วยเครื่องหมาย <b>|</b> หรือ <b>;</b> (เช่น RESEARCHER|ADVISOR)
+                </div>
+            </button>
+            <button 
+              onClick={() => setIsAdding(!isAdding)}
+              className={`${isAdding ? 'bg-slate-200 text-slate-700' : 'bg-blue-600 text-white hover:bg-blue-700'} px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors font-medium shadow-sm`}
+            >
+              {isAdding ? <X size={20}/> : <UserPlus size={20}/>}
+              {isAdding ? 'ยกเลิก' : 'เพิ่มผู้ใช้งาน'}
+            </button>
+        </div>
       </div>
 
       {isAdding && (

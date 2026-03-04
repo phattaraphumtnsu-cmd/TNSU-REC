@@ -190,7 +190,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           <p className="text-slate-500">ภาพรวมการดำเนินงานจริยธรรมการวิจัย</p>
         </div>
         
-        {user.roles.includes(Role.RESEARCHER) && (
+        {(user.roles.includes(Role.RESEARCHER) || user.roles.includes(Role.REVIEWER) || user.roles.includes(Role.ADVISOR)) && (
             <button 
                 onClick={() => onNavigate('submit')}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-md hover:shadow-lg transition-all"

@@ -242,11 +242,14 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
   [Role.ADVISOR]: [
     Permission.VIEW_DASHBOARD,
-    Permission.APPROVE_AS_ADVISOR
+    Permission.APPROVE_AS_ADVISOR,
+    Permission.SUBMIT_PROPOSAL // Advisors can also submit their own research
   ],
   [Role.REVIEWER]: [
     Permission.VIEW_DASHBOARD,
-    Permission.VOTE_AS_REVIEWER
+    Permission.VOTE_AS_REVIEWER,
+    Permission.SUBMIT_PROPOSAL, // Reviewers can submit their own research
+    Permission.APPROVE_AS_ADVISOR // Reviewers can act as advisors
   ]
 };
 

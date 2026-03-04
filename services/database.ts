@@ -205,6 +205,25 @@ class DatabaseService {
     }
   }
 
+  async getEligibleAdvisors(): Promise<User[]> {
+    try {
+        const q = query(collection(dbFirestore, 'users'));
+        const querySnapshot = await getDocs(q);
+        
+        return querySnapshot.docs
+            .map(doc => {
+                const data = doc.data() as any;
+                const roles = data.roles || (data.role ? [data.role] : []);
+                return { id: doc.id, ...data, roles } as User;
+            })
+            .filter((u: any) => !u.isDeleted && (u.roles.includes(Role.ADVISOR) || u.roles.includes(Role.REVIEWER)));
+            
+    } catch (e) {
+        console.error("Error fetching eligible advisors", e);
+        return [];
+    }
+  }
+
   async updateUser(id: string, updates: Partial<User>) {
     const userRef = doc(dbFirestore, 'users', id);
     
@@ -289,13 +308,12 @@ class DatabaseService {
 
     const queries = [];
 
-    // 2. RESEARCHER: Where researcherId == userId + filters
-    if (userRoles.includes(Role.RESEARCHER)) {
-        queries.push(getDocs(query(proposalsRef, where('researcherId', '==', userId), ...commonConstraints)));
-    }
+    // 2. RESEARCHER: Always fetch own proposals (Anyone with SUBMIT_PROPOSAL permission or just anyone)
+    // We always include this query so users can see their own submissions regardless of role
+    queries.push(getDocs(query(proposalsRef, where('researcherId', '==', userId), ...commonConstraints)));
 
     // 3. ADVISOR: Where advisorId == userId + filters
-    if (userRoles.includes(Role.ADVISOR)) {
+    if (userRoles.includes(Role.ADVISOR) || userRoles.includes(Role.REVIEWER)) {
         queries.push(getDocs(query(proposalsRef, where('advisorId', '==', userId), ...commonConstraints)));
     }
 

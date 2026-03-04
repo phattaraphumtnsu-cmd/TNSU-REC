@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
-import { ProposalStatus, ReviewType, Role, UserType, User } from '../types';
+import { ProposalStatus, ReviewType, Role, UserType, User, hasPermission, Permission } from '../types';
 import { ArrowLeft, Loader2, Link as LinkIcon, Info, AlertCircle, UserCheck, Wallet, Search, CheckCircle, X } from 'lucide-react';
 
 interface SubmissionFormProps {
@@ -32,7 +32,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
   useEffect(() => {
     const fetchAdvisors = async () => {
         try {
-            const data = await db.getUsersByRole(Role.ADVISOR);
+            const data = await db.getEligibleAdvisors();
             setAdvisors(data);
         } catch (error) {
             console.error("Failed to load advisors", error);
@@ -41,7 +41,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
     fetchAdvisors();
   }, []);
 
-  if (!user || !user.roles.includes(Role.RESEARCHER)) return <div className="text-red-500 p-8">Access Denied: สำหรับนักวิจัยเท่านั้น</div>;
+  if (!user || !hasPermission(user.roles, Permission.SUBMIT_PROPOSAL)) return <div className="text-red-500 p-8">Access Denied: สำหรับนักวิจัยหรือผู้ที่มีสิทธิ์ยื่นคำขอเท่านั้น</div>;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
