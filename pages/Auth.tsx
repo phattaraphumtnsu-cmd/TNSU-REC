@@ -307,20 +307,47 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">สังกัด (วิทยาเขต/รร.)</label>
-                    <select value={regCampus} onChange={e => setRegCampus(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-sm">
+                    <select value={regCampus} onChange={e => {
+                        setRegCampus(e.target.value);
+                        // Reset faculty if switching to external
+                        if (e.target.value === 'บุคลากรภายนอก') {
+                            setRegFaculty('');
+                        } else {
+                            setRegFaculty(FACULTIES[0]);
+                        }
+                    }} className="w-full p-2.5 border border-slate-300 rounded-lg text-sm">
+                        <optgroup label="ส่วนกลาง">
+                             <option value="สำนักงานอธิการบดี">สำนักงานอธิการบดี</option>
+                        </optgroup>
                         <optgroup label="วิทยาเขต">
-                            {CAMPUSES.map(c => <option key={c} value={c}>{c}</option>)}
+                            {CAMPUSES.filter(c => c !== 'สำนักงานอธิการบดี' && c !== 'บุคลากรภายนอก').map(c => <option key={c} value={c}>{c}</option>)}
                         </optgroup>
                         <optgroup label="โรงเรียนกีฬา">
                             {SCHOOLS.map(c => <option key={c} value={c}>{c}</option>)}
                         </optgroup>
+                        <optgroup label="อื่นๆ">
+                             <option value="บุคลากรภายนอก">บุคลากรภายนอก</option>
+                        </optgroup>
                     </select>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">คณะ</label>
-                    <select value={regFaculty} onChange={e => setRegFaculty(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-sm">
-                        {FACULTIES.map(f => <option key={f} value={f}>{f}</option>)}
-                    </select>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                        {regCampus === 'บุคลากรภายนอก' ? 'ชื่อหน่วยงาน' : 'คณะ'}
+                    </label>
+                    {regCampus === 'บุคลากรภายนอก' ? (
+                        <input 
+                            type="text" 
+                            required 
+                            value={regFaculty} 
+                            onChange={e => setRegFaculty(e.target.value)} 
+                            className="w-full p-2.5 border border-slate-300 rounded-lg text-sm" 
+                            placeholder="ระบุชื่อหน่วยงาน"
+                        />
+                    ) : (
+                        <select value={regFaculty} onChange={e => setRegFaculty(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg text-sm">
+                            {FACULTIES.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                    )}
                 </div>
               </div>
 

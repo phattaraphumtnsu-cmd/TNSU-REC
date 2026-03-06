@@ -396,8 +396,49 @@ const UserManagement: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">วิทยาเขต</label><select className="w-full border p-2.5 rounded-lg text-sm" value={newUser.campus} onChange={e => setNewUser({...newUser, campus: e.target.value})}>{CAMPUSES.map(c => <option key={c} value={c}>{c}</option>)}{SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">คณะ</label><select className="w-full border p-2.5 rounded-lg text-sm" value={newUser.faculty} onChange={e => setNewUser({...newUser, faculty: e.target.value})}>{FACULTIES.map(f => <option key={f} value={f}>{f}</option>)}</select></div>
+              <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">วิทยาเขต</label>
+                  <select className="w-full border p-2.5 rounded-lg text-sm" value={newUser.campus} onChange={e => {
+                      setNewUser({...newUser, campus: e.target.value});
+                      if (e.target.value === 'บุคลากรภายนอก') {
+                          setNewUser(prev => ({...prev, faculty: '', campus: e.target.value}));
+                      } else {
+                          setNewUser(prev => ({...prev, faculty: FACULTIES[0], campus: e.target.value}));
+                      }
+                  }}>
+                      <optgroup label="ส่วนกลาง">
+                           <option value="สำนักงานอธิการบดี">สำนักงานอธิการบดี</option>
+                      </optgroup>
+                      <optgroup label="วิทยาเขต">
+                          {CAMPUSES.filter(c => c !== 'สำนักงานอธิการบดี' && c !== 'บุคลากรภายนอก').map(c => <option key={c} value={c}>{c}</option>)}
+                      </optgroup>
+                      <optgroup label="โรงเรียนกีฬา">
+                          {SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </optgroup>
+                      <optgroup label="อื่นๆ">
+                           <option value="บุคลากรภายนอก">บุคลากรภายนอก</option>
+                      </optgroup>
+                  </select>
+              </div>
+              <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                      {newUser.campus === 'บุคลากรภายนอก' ? 'ชื่อหน่วยงาน' : 'คณะ'}
+                  </label>
+                  {newUser.campus === 'บุคลากรภายนอก' ? (
+                      <input 
+                          type="text" 
+                          required 
+                          value={newUser.faculty} 
+                          onChange={e => setNewUser({...newUser, faculty: e.target.value})} 
+                          className="w-full border p-2.5 rounded-lg text-sm" 
+                          placeholder="ระบุชื่อหน่วยงาน"
+                      />
+                  ) : (
+                      <select className="w-full border p-2.5 rounded-lg text-sm" value={newUser.faculty} onChange={e => setNewUser({...newUser, faculty: e.target.value})}>
+                          {FACULTIES.map(f => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                  )}
+              </div>
             </div>
             <div>
                <label className="block text-sm font-medium text-slate-700 mb-1">รหัสผ่านเริ่มต้น</label>
@@ -473,16 +514,46 @@ const UserManagement: React.FC = () => {
 
                     <div>
                          <label className="block text-sm font-medium text-slate-700 mb-1">วิทยาเขต</label>
-                         <select className="w-full border p-2.5 rounded-lg" value={editingUser.campus} onChange={e => setEditingUser({...editingUser, campus: e.target.value})}>
-                            <optgroup label="วิทยาเขต">{CAMPUSES.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
-                            <optgroup label="โรงเรียนกีฬา">{SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}</optgroup>
+                         <select className="w-full border p-2.5 rounded-lg" value={editingUser.campus} onChange={e => {
+                             setEditingUser({...editingUser, campus: e.target.value});
+                             if (e.target.value === 'บุคลากรภายนอก') {
+                                 setEditingUser(prev => prev ? ({...prev, faculty: '', campus: e.target.value}) : null);
+                             } else {
+                                 setEditingUser(prev => prev ? ({...prev, faculty: FACULTIES[0], campus: e.target.value}) : null);
+                             }
+                         }}>
+                            <optgroup label="ส่วนกลาง">
+                                 <option value="สำนักงานอธิการบดี">สำนักงานอธิการบดี</option>
+                            </optgroup>
+                            <optgroup label="วิทยาเขต">
+                                {CAMPUSES.filter(c => c !== 'สำนักงานอธิการบดี' && c !== 'บุคลากรภายนอก').map(c => <option key={c} value={c}>{c}</option>)}
+                            </optgroup>
+                            <optgroup label="โรงเรียนกีฬา">
+                                {SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
+                            </optgroup>
+                            <optgroup label="อื่นๆ">
+                                 <option value="บุคลากรภายนอก">บุคลากรภายนอก</option>
+                            </optgroup>
                          </select>
                     </div>
                     <div className="md:col-span-2">
-                         <label className="block text-sm font-medium text-slate-700 mb-1">คณะ</label>
-                         <select className="w-full border p-2.5 rounded-lg" value={editingUser.faculty} onChange={e => setEditingUser({...editingUser, faculty: e.target.value})}>
-                             {FACULTIES.map(f => <option key={f} value={f}>{f}</option>)}
-                         </select>
+                         <label className="block text-sm font-medium text-slate-700 mb-1">
+                             {editingUser.campus === 'บุคลากรภายนอก' ? 'ชื่อหน่วยงาน' : 'คณะ'}
+                         </label>
+                         {editingUser.campus === 'บุคลากรภายนอก' ? (
+                             <input 
+                                 type="text" 
+                                 required 
+                                 value={editingUser.faculty} 
+                                 onChange={e => setEditingUser({...editingUser, faculty: e.target.value})} 
+                                 className="w-full border p-2.5 rounded-lg" 
+                                 placeholder="ระบุชื่อหน่วยงาน"
+                             />
+                         ) : (
+                             <select className="w-full border p-2.5 rounded-lg" value={editingUser.faculty} onChange={e => setEditingUser({...editingUser, faculty: e.target.value})}>
+                                 {FACULTIES.map(f => <option key={f} value={f}>{f}</option>)}
+                             </select>
+                         )}
                     </div>
                     <div className="md:col-span-2 flex justify-end gap-3 pt-4 mt-2">
                          <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 border rounded-lg text-slate-600">ยกเลิก</button>
@@ -507,7 +578,21 @@ const UserManagement: React.FC = () => {
            ))}
          </div>
          <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
-            <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none md:w-48" value={filterCampus} onChange={e => setFilterCampus(e.target.value)}><option value="ALL">ทุกวิทยาเขต</option><optgroup label="วิทยาเขต">{CAMPUSES.map(c => <option key={c} value={c}>{c}</option>)}</optgroup><optgroup label="โรงเรียนกีฬา">{SCHOOLS.map(c => <option key={c} value={c}>{c}</option>)}</optgroup></select>
+            <select className="border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none md:w-48" value={filterCampus} onChange={e => setFilterCampus(e.target.value)}>
+                <option value="ALL">ทุกวิทยาเขต</option>
+                <optgroup label="ส่วนกลาง">
+                     <option value="สำนักงานอธิการบดี">สำนักงานอธิการบดี</option>
+                </optgroup>
+                <optgroup label="วิทยาเขต">
+                    {CAMPUSES.filter(c => c !== 'สำนักงานอธิการบดี' && c !== 'บุคลากรภายนอก').map(c => <option key={c} value={c}>{c}</option>)}
+                </optgroup>
+                <optgroup label="โรงเรียนกีฬา">
+                    {SCHOOLS.map(c => <option key={c} value={c}>{c}</option>)}
+                </optgroup>
+                <optgroup label="อื่นๆ">
+                     <option value="บุคลากรภายนอก">บุคลากรภายนอก</option>
+                </optgroup>
+            </select>
             <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-2.5 text-slate-400" size={18} /><input type="text" placeholder="ค้นหาชื่อ หรือเบอร์โทร..." className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg outline-none text-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
          </div>
       </div>
