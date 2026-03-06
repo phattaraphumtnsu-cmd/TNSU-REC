@@ -274,11 +274,8 @@ class DatabaseService {
         if (filterStatus !== 'ALL') constraints.push(where('status', '==', filterStatus));
         if (filterFaculty !== 'ALL') constraints.push(where('faculty', '==', filterFaculty));
         
-        // Sorting: If filtering by equality (status/faculty), Firestore sometimes recommends
-        // sorting by that field first or strictly following composite index rules.
-        // For simplicity and common use cases, we try to sort by updatedDate.
-        // If index errors occur, the console will provide a link to create the specific index.
-        constraints.push(orderBy('updatedDate', 'desc'));
+        // Sorting: Removed server-side sorting to prevent "Missing Index" errors on mixed queries.
+        // We rely on client-side sorting in the return statement.
         
         if (lastDoc) constraints.push(startAfter(lastDoc));
         constraints.push(limit(pageSize));

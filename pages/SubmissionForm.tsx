@@ -27,6 +27,15 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
   });
 
   const isStudent = user?.type === UserType.STUDENT;
+  const isExternal = user?.type === UserType.EXTERNAL;
+  
+  const getFeeAmount = () => {
+      if (isStudent) return 0;
+      if (isExternal) return 2000;
+      return 1000; // Staff / Internal
+  };
+
+  const feeAmount = getFeeAmount();
 
   // Fetch Advisors on load
   useEffect(() => {
@@ -53,7 +62,7 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
     }
 
     if (!isStudent && !formData.paymentSlipLink) {
-      alert('กรุณาแนบลิงก์หลักฐานการชำระเงินค่าธรรมเนียม (1,500 บาท)');
+      alert(`กรุณาแนบลิงก์หลักฐานการชำระเงินค่าธรรมเนียม (${feeAmount.toLocaleString()} บาท)`);
       return;
     }
 
@@ -307,7 +316,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({ onNavigate }) => {
                 {!isStudent ? (
                     <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
                         <div className="flex items-center gap-2 mb-2 text-slate-800 font-medium">
-                             <Wallet size={18} className="text-slate-500"/> ค่าธรรมเนียมการพิจารณา: 1,500 บาท
+                             <Wallet size={18} className="text-slate-500"/> ค่าธรรมเนียมการพิจารณา: <span className="text-blue-600 font-bold text-lg">{feeAmount.toLocaleString()}</span> บาท
+                             {isExternal && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full ml-2">บุคคลภายนอก</span>}
+                             {!isExternal && !isStudent && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-2">บุคลากรภายใน</span>}
                         </div>
                         
                         <div>

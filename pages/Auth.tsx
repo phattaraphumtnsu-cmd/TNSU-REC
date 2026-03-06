@@ -275,6 +275,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
                    >
                      <option value={UserType.STUDENT}>นักศึกษา</option>
                      <option value={UserType.STAFF}>อาจารย์/บุคลากร</option>
+                     <option value={UserType.EXTERNAL}>บุคคลภายนอก</option>
                    </select>
                 </div>
               )}

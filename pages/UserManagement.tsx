@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
-import { Role, CAMPUSES, FACULTIES, SCHOOLS, hasPermission, Permission, User } from '../types';
+import { Role, CAMPUSES, FACULTIES, SCHOOLS, hasPermission, Permission, User, UserType } from '../types';
 import { Trash2, UserPlus, Search, Shield, X, Check, Mail, MapPin, Lock, Filter, Loader2, AlertTriangle, Ban, Key, RotateCcw, Edit, Phone, FileText, Download } from 'lucide-react';
 
 const UserManagement: React.FC = () => {
@@ -24,6 +24,7 @@ const UserManagement: React.FC = () => {
     phoneNumber: '',
     role: Role.RESEARCHER, // Default primary
     roles: [Role.RESEARCHER], // Array for multi-role
+    type: UserType.STUDENT, // Default type
     campus: CAMPUSES[0],
     faculty: FACULTIES[0],
     password: ''
@@ -289,6 +290,7 @@ const UserManagement: React.FC = () => {
               phoneNumber: editingUser.phoneNumber,
               roles: editingUser.roles,
               role: getPrimaryRole(editingUser.roles), // Ensure primary role is consistent with priority
+              type: editingUser.type, // Include type update
               campus: editingUser.campus,
               faculty: editingUser.faculty
           });
@@ -394,6 +396,21 @@ const UserManagement: React.FC = () => {
                     ))}
                 </div>
             </div>
+
+            {newUser.roles.includes(Role.RESEARCHER) && (
+                <div className="md:col-span-2">
+                   <label className="block text-sm font-medium text-slate-700 mb-1">ประเภทผู้ใช้งาน (สำหรับผู้วิจัย)</label>
+                   <select 
+                     className="w-full p-2.5 border border-slate-300 rounded-lg"
+                     value={newUser.type}
+                     onChange={(e) => setNewUser({...newUser, type: e.target.value as UserType})}
+                   >
+                     <option value={UserType.STUDENT}>นักศึกษา</option>
+                     <option value={UserType.STAFF}>อาจารย์/บุคลากร</option>
+                     <option value={UserType.EXTERNAL}>บุคคลภายนอก</option>
+                   </select>
+                </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -511,6 +528,21 @@ const UserManagement: React.FC = () => {
                             )})}
                         </div>
                     </div>
+
+                    {editingUser.roles.includes(Role.RESEARCHER) && (
+                        <div className="md:col-span-2">
+                           <label className="block text-sm font-medium text-slate-700 mb-1">ประเภทผู้ใช้งาน (สำหรับผู้วิจัย)</label>
+                           <select 
+                             className="w-full p-2.5 border border-slate-300 rounded-lg"
+                             value={editingUser.type || UserType.STUDENT}
+                             onChange={(e) => setEditingUser({...editingUser, type: e.target.value as UserType})}
+                           >
+                             <option value={UserType.STUDENT}>นักศึกษา</option>
+                             <option value={UserType.STAFF}>อาจารย์/บุคลากร</option>
+                             <option value={UserType.EXTERNAL}>บุคคลภายนอก</option>
+                           </select>
+                        </div>
+                    )}
 
                     <div>
                          <label className="block text-sm font-medium text-slate-700 mb-1">วิทยาเขต</label>
