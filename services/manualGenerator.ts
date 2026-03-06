@@ -103,10 +103,14 @@ export const generateWordManual = async () => {
 
           // FOOTER
           new Paragraph({
-            text: "--- เอกสารนี้จัดทำโดยระบบอัตโนมัติ TNSU-REC ---",
+            children: [
+                new TextRun({
+                    text: "--- เอกสารนี้จัดทำโดยระบบอัตโนมัติ TNSU-REC ---",
+                    color: "888888"
+                })
+            ],
             alignment: AlignmentType.CENTER,
             spacing: { before: 800 },
-            color: "888888"
           }),
         ],
       },

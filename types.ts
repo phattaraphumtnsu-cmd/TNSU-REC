@@ -62,6 +62,7 @@ export interface ProgressReport {
   submittedDate: string;
   acknowledgedDate?: string; // If present, admin has reviewed
   acknowledgedBy?: string;
+  status: 'PENDING' | 'ACKNOWLEDGED';
 }
 
 export interface Notification {
@@ -71,6 +72,27 @@ export interface Notification {
   link?: string;
   isRead: boolean;
   createdAt: string;
+}
+
+export enum EmailTrigger {
+  REGISTER_WELCOME = 'REGISTER_WELCOME',
+  PROPOSAL_SUBMITTED = 'PROPOSAL_SUBMITTED',
+  PROPOSAL_STATUS_CHANGE = 'PROPOSAL_STATUS_CHANGE',
+  REVIEW_ASSIGNED = 'REVIEW_ASSIGNED',
+  REVIEW_SUBMITTED = 'REVIEW_SUBMITTED',
+  REVISION_REQUESTED = 'REVISION_REQUESTED',
+  REVISION_SUBMITTED = 'REVISION_SUBMITTED',
+  CERTIFICATE_ISSUED = 'CERTIFICATE_ISSUED',
+  GENERAL_NOTIFICATION = 'GENERAL_NOTIFICATION'
+}
+
+export interface EmailTemplate {
+  id: string; // matches EmailTrigger
+  name: string;
+  subject: string;
+  body: string; // HTML allowed, supports {{variables}}
+  variables: string[]; // List of available variables for this template
+  isActive: boolean;
 }
 
 export interface AuditLog {
@@ -152,6 +174,7 @@ export interface Proposal {
   fileLink: string; // Google Drive Link
   paymentSlipLink?: string;
   status: ProposalStatus;
+  isDeleted?: boolean;
   submissionDate: string;
   updatedDate: string;
   

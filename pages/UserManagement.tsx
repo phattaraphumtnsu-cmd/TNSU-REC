@@ -8,6 +8,8 @@ const UserManagement: React.FC = () => {
   const currentUser = db.currentUser;
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(false);
   
   // Filters
   const [filterRole, setFilterRole] = useState<string>('ALL');
@@ -33,11 +35,20 @@ const UserManagement: React.FC = () => {
   // Edit User Modal State
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (isLoadMore: boolean = false) => {
       setLoading(true);
       try {
-          const data = await db.getUsers();
-          setUsers(data);
+          const currentLastDoc = isLoadMore ? lastDoc : null;
+          const { users: newUsers, lastDoc: newLastDoc } = await db.getUsers(filterRole, 20, currentLastDoc);
+          
+          if (isLoadMore) {
+              setUsers(prev => [...prev, ...newUsers]);
+          } else {
+              setUsers(newUsers);
+          }
+          
+          setLastDoc(newLastDoc);
+          setHasMore(!!newLastDoc && newUsers.length === 20);
       } catch (e) {
           console.error(e);
       } finally {
@@ -49,7 +60,7 @@ const UserManagement: React.FC = () => {
     if (currentUser && hasPermission(currentUser.roles, Permission.MANAGE_USERS)) {
         fetchUsers();
     }
-  }, [currentUser]);
+  }, [currentUser, filterRole]); // Re-fetch when filterRole changes
 
   if (!currentUser || !hasPermission(currentUser.roles, Permission.MANAGE_USERS)) {
       return (
@@ -326,7 +337,7 @@ const UserManagement: React.FC = () => {
 
   const rolePriority = { [Role.ADMIN]: 0, [Role.REVIEWER]: 1, [Role.ADVISOR]: 2, [Role.RESEARCHER]: 3 };
 
-  if(loading) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-blue-600" size={32} /></div>;
+  if(loading && users.length === 0) return <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-blue-600" size={32} /></div>;
 
   return (
     <div className="space-y-6 relative">
@@ -336,6 +347,28 @@ const UserManagement: React.FC = () => {
           <p className="text-slate-500">เพิ่ม ระงับ และแก้ไขสิทธิ์การเข้าใช้งานระบบ</p>
         </div>
         <div className="flex gap-2">
+            {/* Migration Tool (Hidden unless needed) */}
+            <button 
+                onClick={async () => {
+                    if(confirm("ยืนยันการแปลงข้อมูลผู้ใช้ (Migrate Roles)?\nการดำเนินการนี้จะอัปเดตข้อมูลผู้ใช้ทั้งหมดให้รองรับระบบหลายบทบาท")) {
+                        setLoading(true);
+                        try {
+                            const result = await db.migrateUserRoles();
+                            alert(result);
+                            fetchUsers();
+                        } catch(e: any) {
+                            alert("Error: " + e.message);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }}
+                className="bg-purple-600 text-white hover:bg-purple-700 px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors font-medium shadow-sm"
+                title="แปลงข้อมูล Role เก่า -> Roles ใหม่"
+            >
+                <RotateCcw size={20}/> Migrate Data
+            </button>
+
             <input 
                 type="file" 
                 ref={fileInputRef}
@@ -696,6 +729,18 @@ const UserManagement: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {hasMore && (
+            <div className="p-4 border-t border-slate-100 flex justify-center">
+                <button 
+                    onClick={() => fetchUsers(true)} 
+                    disabled={loading}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2 disabled:opacity-50"
+                >
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+                    โหลดเพิ่มเติม...
+                </button>
+            </div>
+        )}
       </div>
     </div>
   );

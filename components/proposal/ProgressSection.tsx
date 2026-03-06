@@ -32,7 +32,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({ proposal, user, onUpd
   const handleAck = async (reportId: string) => {
       setLoading(true);
       try {
-          await db.acknowledgeProgressReport(proposal.id, reportId, user.name, proposal.progressReports);
+          await db.acknowledgeProgressReport(proposal.id, reportId);
           onUpdate();
       } catch (e: any) { alert(e.message); } finally { setLoading(false); }
   };

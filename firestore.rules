@@ -103,6 +103,11 @@ service cloud.firestore {
         allow create: if isSignedIn();
     }
     
+    match /email_templates/{templateId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     match /surveys/{userId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
         allow read: if isAdmin();

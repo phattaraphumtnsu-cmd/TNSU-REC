@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/database';
 import { Role, Permission, hasPermission, Notification } from '../types';
-import { LogOut, Home, FilePlus, Users, BarChart, UserCircle, HelpCircle, Bell } from 'lucide-react';
+import { LogOut, Home, FilePlus, Users, BarChart, UserCircle, HelpCircle, Bell, Mail } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -21,14 +21,12 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
   useEffect(() => {
     if(!user) return;
     
-    const fetchNotifs = async () => {
-        const data = await db.getNotifications(user.id);
+    // Use Real-time listener
+    const unsubscribe = db.subscribeToNotifications(user.id, (data) => {
         setNotifications(data);
-    };
+    });
 
-    fetchNotifs();
-    const interval = setInterval(fetchNotifs, 10000); // Poll every 10s
-    return () => clearInterval(interval);
+    return () => unsubscribe();
   }, [user]);
   
   if (!user) return <>{children}</>;
@@ -37,8 +35,8 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
 
   const handleNotificationClick = async (link?: string) => {
       await db.markAsRead(user.id);
-      const updated = await db.getNotifications(user.id);
-      setNotifications(updated);
+      const { data } = await db.getNotifications(user.id);
+      setNotifications(data);
       setShowNotifications(false);
       if(link) {
           const [page, search] = link.split('?');
@@ -88,7 +86,10 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
           )}
 
           {hasPermission(user.roles, Permission.MANAGE_USERS) && (
-            <NavItem page="users" icon={Users} label="จัดการผู้ใช้งาน" />
+            <>
+                <NavItem page="users" icon={Users} label="จัดการผู้ใช้งาน" />
+                <NavItem page="email-templates" icon={Mail} label="ตั้งค่าอีเมล" />
+            </>
           )}
 
           {hasPermission(user.roles, Permission.VIEW_REPORTS) && (
@@ -148,8 +149,8 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
                          {unreadCount > 0 && (
                             <button onClick={async () => { 
                                 await db.markAsRead(user.id); 
-                                const u = await db.getNotifications(user.id);
-                                setNotifications(u);
+                                const { data } = await db.getNotifications(user.id);
+                                setNotifications(data);
                             }} className="text-xs text-blue-600 hover:underline">อ่านทั้งหมด</button>
                          )}
                       </div>

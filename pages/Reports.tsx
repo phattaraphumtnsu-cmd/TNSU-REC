@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { db } from '../services/database';
 import { ProposalStatus, FACULTIES, Proposal, Role, AuditLog, SurveyResponse } from '../types';
-import { Loader2, ShieldAlert, AlertTriangle, User, BarChart3, Calendar, Download, Printer } from 'lucide-react';
+import { Loader2, ShieldAlert, AlertTriangle, User, BarChart3, Calendar, Download, Printer, Mail } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -11,6 +11,7 @@ const Reports: React.FC = () => {
   const [allProposals, setAllProposals] = useState<Proposal[]>([]);
   const [filteredProposals, setFilteredProposals] = useState<Proposal[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [emailLogs, setEmailLogs] = useState<any[]>([]);
   const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -31,8 +32,11 @@ const Reports: React.FC = () => {
 
            // Fetch Audit Logs and Surveys if admin
            if (currentUser?.roles.includes(Role.ADMIN)) {
-              const logs = await db.getAuditLogs();
+              const { data: logs } = await db.getAuditLogs();
               setAuditLogs(logs);
+
+              const { data: emails } = await db.getEmailLogs(20);
+              setEmailLogs(emails);
 
               const allSurveys = await db.getAllSurveys();
               setSurveys(allSurveys);
@@ -409,6 +413,54 @@ const Reports: React.FC = () => {
                     </tbody>
                 </table>
                 {auditLogs.length > 10 && <div className="p-2 text-center text-xs text-slate-400 italic">...แสดง 10 รายการล่าสุดจากทั้งหมด {auditLogs.length} รายการ...</div>}
+                </div>
+            </div>
+
+            {/* Email Logs Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-8 page-break-inside-avoid">
+                <div className="bg-slate-50 border-b border-slate-200 px-6 py-4">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <Mail size={20} className="text-blue-600"/> บันทึกการส่งอีเมล (Email Delivery Logs)
+                    </h3>
+                </div>
+                <div>
+                <table className="w-full text-sm">
+                    <thead className="bg-slate-100 text-slate-500 font-medium">
+                        <tr>
+                            <th className="px-6 py-3 text-left">เวลา</th>
+                            <th className="px-6 py-3 text-left">ผู้รับ</th>
+                            <th className="px-6 py-3 text-left">หัวข้อ</th>
+                            <th className="px-6 py-3 text-left">สถานะ</th>
+                            <th className="px-6 py-3 text-left">รายละเอียด</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {emailLogs.length === 0 ? (
+                             <tr><td colSpan={5} className="p-4 text-center text-slate-400">ไม่มีบันทึกการส่งอีเมล</td></tr>
+                        ) : (
+                            emailLogs.map(log => {
+                                const status = log.delivery?.state || 'PENDING';
+                                const statusColor = status === 'SUCCESS' ? 'text-green-600 bg-green-50' : status === 'ERROR' ? 'text-red-600 bg-red-50' : 'text-yellow-600 bg-yellow-50';
+                                
+                                return (
+                                <tr key={log.id} className="hover:bg-slate-50">
+                                    <td className="px-6 py-3 whitespace-nowrap text-slate-500">
+                                        {log.createdAt ? new Date(log.createdAt).toLocaleString('th-TH') : '-'}
+                                    </td>
+                                    <td className="px-6 py-3 text-slate-800">{log.to ? log.to.join(', ') : '-'}</td>
+                                    <td className="px-6 py-3 text-slate-600 truncate max-w-xs">{log.message?.subject}</td>
+                                    <td className="px-6 py-3">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${statusColor}`}>{status}</span>
+                                    </td>
+                                    <td className="px-6 py-3 text-slate-500 text-xs truncate max-w-xs">
+                                        {log.delivery?.error || (status === 'SUCCESS' ? 'Sent successfully' : 'Queued')}
+                                    </td>
+                                </tr>
+                                )
+                            })
+                        )}
+                    </tbody>
+                </table>
                 </div>
             </div>
             </>

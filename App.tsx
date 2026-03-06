@@ -10,6 +10,7 @@ import UserProfile from './pages/UserProfile';
 import UserManagement from './pages/UserManagement';
 import UserManual from './pages/UserManual';
 import CertificateView from './pages/CertificateView';
+import EmailTemplateManager from './components/admin/EmailTemplateManager';
 import { db } from './services/database';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -102,6 +103,7 @@ const App: React.FC = () => {
       {currentPage === 'reports' && <Reports />}
       {currentPage === 'profile' && <UserProfile />}
       {currentPage === 'users' && <UserManagement />}
+      {currentPage === 'email-templates' && <EmailTemplateManager />}
       {currentPage === 'manual' && <UserManual onNavigate={handleNavigate} />}
     </Layout>
   );

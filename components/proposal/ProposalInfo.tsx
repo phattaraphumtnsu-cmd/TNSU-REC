@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Proposal, ProposalStatus, Role, User, Permission, hasPermission } from '../../types';
 import { db } from '../../services/database';
-import { ArrowLeft, ExternalLink, Calendar, Award, RefreshCw, Loader2, Trash2, Phone, AlertCircle, FileText, History, Clock, Link2, Shield } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Calendar, Award, RefreshCw, Loader2, Trash2, Phone, AlertCircle, FileText, History, Clock, Link2, Shield, Edit2, Check, X } from 'lucide-react';
 
 interface ProposalInfoProps {
   proposal: Proposal;
@@ -13,6 +13,8 @@ interface ProposalInfoProps {
 
 const ProposalInfo: React.FC<ProposalInfoProps> = ({ proposal, user, onNavigate, onUpdate }) => {
   const [loading, setLoading] = useState(false);
+  const [isEditingCode, setIsEditingCode] = useState(false);
+  const [newCode, setNewCode] = useState(proposal.code || '');
 
   const handleWithdraw = async () => {
     const reason = prompt("กรุณาระบุเหตุผลที่ต้องการถอนโครงการ (Withdrawal Reason):");
@@ -48,6 +50,22 @@ const ProposalInfo: React.FC<ProposalInfoProps> = ({ proposal, user, onNavigate,
     }
   };
 
+  const handleSaveCode = async () => {
+    if (!newCode.trim()) return alert("Code cannot be empty");
+    if (window.confirm(`ยืนยันการเปลี่ยนรหัสโครงการเป็น "${newCode}"?`)) {
+        setLoading(true);
+        try {
+            await db.updateProposalCode(proposal.id, newCode);
+            setIsEditingCode(false);
+            onUpdate();
+        } catch (e: any) {
+            alert("Error updating code: " + e.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+  };
+
   const renderStatusBadge = () => {
     let color = 'bg-gray-100 text-gray-700';
     if (proposal.status === ProposalStatus.APPROVED) color = 'bg-green-100 text-green-700';
@@ -73,7 +91,36 @@ const ProposalInfo: React.FC<ProposalInfoProps> = ({ proposal, user, onNavigate,
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
            <div className="flex items-center gap-3 mb-2">
-             <span className="text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">{proposal.code || 'รอรหัส'}</span>
+             {isEditingCode ? (
+                <div className="flex items-center gap-2">
+                    <input 
+                        type="text" 
+                        value={newCode} 
+                        onChange={(e) => setNewCode(e.target.value)}
+                        className="border border-blue-300 rounded px-2 py-1 text-sm font-mono text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        autoFocus
+                    />
+                    <button onClick={handleSaveCode} disabled={loading} className="text-green-600 hover:text-green-700 bg-green-50 p-1 rounded">
+                        <Check size={16} />
+                    </button>
+                    <button onClick={() => { setIsEditingCode(false); setNewCode(proposal.code || ''); }} className="text-red-500 hover:text-red-600 bg-red-50 p-1 rounded">
+                        <X size={16} />
+                    </button>
+                </div>
+             ) : (
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">{proposal.code || 'รอรหัส'}</span>
+                    {hasPermission(user.roles, Permission.MANAGE_USERS) && (
+                        <button 
+                            onClick={() => { setIsEditingCode(true); setNewCode(proposal.code || ''); }} 
+                            className="text-slate-400 hover:text-blue-600 transition-colors p-1 rounded hover:bg-slate-100" 
+                            title="แก้ไขรหัสโครงการ"
+                        >
+                            <Edit2 size={14} />
+                        </button>
+                    )}
+                </div>
+             )}
              {renderStatusBadge()}
            </div>
            <h1 className="text-xl font-bold text-slate-900">{proposal.titleTh}</h1>
