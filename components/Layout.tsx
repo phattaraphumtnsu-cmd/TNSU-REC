@@ -22,12 +22,8 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onNavi
     if(!user) return;
     
     const fetchNotifs = async () => {
-        try {
-            const data = await db.getNotifications(user.id);
-            setNotifications(data);
-        } catch (e) {
-            console.error("Failed to load notifications");
-        }
+        const data = await db.getNotifications(user.id);
+        setNotifications(data);
     };
 
     fetchNotifs();

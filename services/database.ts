@@ -702,18 +702,27 @@ class DatabaseService {
   }
 
   async getNotifications(userId: string): Promise<Notification[]> {
-    const q = query(
-        collection(dbFirestore, 'notifications'), 
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc')
-    );
     try {
+        // Use simple query to avoid composite index requirements
+        const q = query(
+            collection(dbFirestore, 'notifications'), 
+            where('userId', '==', userId)
+        );
+        
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Notification));
+        
+        return querySnapshot.docs
+            .map(doc => ({ id: doc.id, ...(doc.data() as any) } as Notification))
+            .sort((a, b) => {
+                // Safe sort handling missing createdAt
+                const dateA = a.createdAt || '';
+                const dateB = b.createdAt || '';
+                return dateB.localeCompare(dateA);
+            });
     } catch (e) {
-        const q2 = query(collection(dbFirestore, 'notifications'), where('userId', '==', userId));
-        const qs = await getDocs(q2);
-        return qs.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Notification)).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+        console.error("Error fetching notifications:", e);
+        // Return empty array on error to prevent UI crash/error loops
+        return [];
     }
   }
 
