@@ -18,13 +18,12 @@ export class AuditService {
   }
 
   async logActivity(user: User | null, action: string, targetId: string, details: string) {
-    if (!user) return; // Or log as anonymous?
     try {
       await addDoc(collection(dbFirestore, 'audit_logs'), {
         action,
-        actorId: user.id,
-        actorName: user.name,
-        actorRole: user.roles ? user.roles.join(',') : (user.role || 'USER'),
+        actorId: user ? user.id : 'SYSTEM',
+        actorName: user ? user.name : 'System',
+        actorRole: user ? (user.roles ? user.roles.join(',') : (user.role || 'USER')) : 'SYSTEM',
         targetId,
         details,
         timestamp: new Date().toISOString()

@@ -165,18 +165,34 @@ export class NotificationService {
   }
 
   async getEmailLogs(limitCount: number = 50, lastDoc: any = null): Promise<{ data: any[], lastDoc: any }> {
-      const mailRef = collection(dbFirestore, 'mail');
-      const constraints: any[] = [orderBy('createdAt', 'desc')]; 
+      // Use 'audit_logs' but query ONLY by timestamp to avoid composite index requirement
+      // We will filter for 'EMAIL_SENT' client-side
+      const logsRef = collection(dbFirestore, 'audit_logs');
+      const constraints: any[] = [
+          orderBy('timestamp', 'desc')
+      ]; 
       
       if (lastDoc) constraints.push(startAfter(lastDoc));
-      constraints.push(limit(limitCount));
+      // Fetch more than requested limit to increase chance of finding email logs after filtering
+      constraints.push(limit(limitCount * 4)); 
 
-      const q = query(mailRef, ...constraints);
+      const q = query(logsRef, ...constraints);
       try {
         const snapshot = await getDocs(q);
+        
+        // Filter in memory
+        const allLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+        const emailLogs = allLogs.filter(log => log.action === 'EMAIL_SENT');
+
         return {
-            data: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-            lastDoc: snapshot.docs[snapshot.docs.length - 1]
+            data: emailLogs.map(data => ({ 
+                id: data.id, 
+                createdAt: data.timestamp,
+                to: [data.targetId], // We store recipient in targetId
+                message: { subject: data.details }, // We store subject in details
+                delivery: { state: 'SENT' } // Assume sent
+            })),
+            lastDoc: snapshot.docs[snapshot.docs.length - 1] // Return the cursor of the RAW query
         };
       } catch (e) {
           console.error("Error fetching email logs", e);
@@ -269,13 +285,22 @@ export class NotificationService {
   }
 
   private async queueEmail(to: string, subject: string, html: string) {
-      const mailRef = collection(dbFirestore, 'mail');
-      await addDoc(mailRef, {
+      const timestamp = new Date().toISOString();
+      const emailData = {
           to: [to],
           message: {
               subject: subject,
               html: html
-          }
-      });
+          },
+          createdAt: timestamp
+      };
+
+      // 1. Add to 'mail' collection for the Extension to process (Actual Sending)
+      const mailRef = collection(dbFirestore, 'mail');
+      await addDoc(mailRef, emailData);
+
+      // 2. Log to 'audit_logs' for Admin UI (Logging) - Safest for permissions
+      // We use 'EMAIL_SENT' action, targetId = recipient, details = subject
+      await this.auditService.logActivity(null, 'EMAIL_SENT', to, subject);
   }
 }

@@ -13,6 +13,7 @@ const Reports: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
   const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
+  const [reviewerWorkload, setReviewerWorkload] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   
@@ -40,6 +41,9 @@ const Reports: React.FC = () => {
 
               const allSurveys = await db.getAllSurveys();
               setSurveys(allSurveys);
+
+              const workload = await db.getReviewerWorkload();
+              setReviewerWorkload(workload);
            }
        } catch (e) {
            console.error(e);
@@ -295,6 +299,26 @@ const Reports: React.FC = () => {
                     <YAxis allowDecimals={false} />
                     <Tooltip />
                     <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} label={{ position: 'top' }} />
+                </BarChart>
+                </ResponsiveContainer>
+            </div>
+            </div>
+
+            {/* Reviewer Performance Chart */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 md:col-span-2">
+            <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
+                <User size={18}/> ประสิทธิภาพการรีวิว (Reviewer Performance)
+            </h3>
+            <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={reviewerWorkload}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="reviewerName" fontSize={12} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="completedCount" name="พิจารณาแล้ว" fill="#10B981" stackId="a" />
+                    <Bar dataKey="activeCount" name="อยู่ระหว่างพิจารณา" fill="#F59E0B" stackId="a" />
                 </BarChart>
                 </ResponsiveContainer>
             </div>
