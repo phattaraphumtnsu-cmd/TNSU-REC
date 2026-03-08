@@ -166,7 +166,7 @@ export class ProposalService {
             newCount = counterDoc.data().count + 1;
         }
 
-        const code = `TNSU-${facCode} ${thYear}-${newCount.toString().padStart(3, '0')}`;
+        const code = `TNSU-${facCode}-${thYear}-${newCount.toString().padStart(3, '0')}`;
 
         const newProposalRef = doc(collection(dbFirestore, 'proposals'));
         
