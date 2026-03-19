@@ -97,7 +97,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
         faculty: regRole === Role.RESEARCHER || regRole === Role.ADVISOR ? regFaculty : undefined,
       }, regPass);
 
-      alert('ลงทะเบียนสำเร็จ ระบบจะนำท่านเข้าสู่ระบบอัตโนมัติ');
+      alert('ลงทะเบียนสำเร็จ ระบบจะนำท่านเข้าสู่ระบบอัตโนมัติ\n\n* หมายเหตุ: ระบบอาจส่งอีเมลต้อนรับไปยังโฟลเดอร์ "จดหมายขยะ" (Spam/Junk) กรุณาตรวจสอบหากไม่พบในกล่องจดหมายปกติ');
       onLogin(newUser);
     } catch (err: any) {
       console.error("Register error:", err);
@@ -125,7 +125,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
     setLoading(true);
     try {
       await db.resetPassword(resetEmail);
-      alert(`ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านไปที่ ${resetEmail} แล้ว (หากอีเมลมีอยู่ในระบบ)`);
+      alert(`ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านไปที่ ${resetEmail} แล้ว\n\n* หมายเหตุ: กรุณาตรวจสอบในโฟลเดอร์ "จดหมายขยะ" (Spam/Junk) หากไม่พบอีเมลในกล่องจดหมายปกติ`);
       setView('LOGIN');
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการส่งอีเมล กรุณาตรวจสอบอีเมลหรือลองใหม่อีกครั้ง');
@@ -380,6 +380,9 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
             <form onSubmit={handleForgotEmailSubmit} className="space-y-6">
               <div className="text-center text-slate-600 text-sm mb-4">
                 กรุณากรอกอีเมลที่ท่านใช้ลงทะเบียน ระบบจะส่งลิงก์สำหรับรีเซ็ตรหัสผ่านไปให้ทางอีเมล
+                <div className="text-red-500 font-medium mt-2">
+                  * หมายเหตุ: กรุณาตรวจสอบในโฟลเดอร์ "จดหมายขยะ" (Spam/Junk) หากไม่พบอีเมล
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">อีเมล</label>

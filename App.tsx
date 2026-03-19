@@ -21,13 +21,12 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('auth');
   const [pageParams, setPageParams] = useState<any>({});
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   // Monitor Firebase Auth State
   useEffect(() => {
     // This listener automatically handles session persistence
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true);
       try {
         if (firebaseUser) {
            // When Firebase Auth state changes, sync with Firestore User Data
@@ -35,9 +34,7 @@ const App: React.FC = () => {
            
            if (appUser) {
                setUser(appUser);
-               if (currentPage === 'auth') {
-                  setCurrentPage('dashboard');
-               }
+               setCurrentPage(prev => prev === 'auth' ? 'dashboard' : prev);
            } else {
                // Auth exists but Data is missing (e.g. mid-registration race condition)
                // Do NOT redirect to dashboard yet. Stay on Auth until explicit login/register completes.
@@ -45,20 +42,18 @@ const App: React.FC = () => {
            }
         } else {
            setUser(null);
-           if (currentPage !== 'auth' && currentPage !== 'manual' && currentPage !== 'certificate') {
-              setCurrentPage('auth');
-           }
+           setCurrentPage(prev => (prev !== 'auth' && prev !== 'manual' && prev !== 'certificate') ? 'auth' : prev);
         }
       } catch (error) {
         console.error("Auth sync error:", error);
       } finally {
-        setLoading(false);
+        setInitialLoad(false);
       }
     });
 
     // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [currentPage]);
+  }, []);
 
   const handleLogin = (loggedInUser: User) => {
     // With onAuthStateChanged, state updates handled automatically, 
@@ -78,7 +73,7 @@ const App: React.FC = () => {
     if (params) setPageParams(params);
   };
 
-  if (loading) {
+  if (initialLoad) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-50 text-blue-600">
         <Loader2 className="animate-spin" size={48} />

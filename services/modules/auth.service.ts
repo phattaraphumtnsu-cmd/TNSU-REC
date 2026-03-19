@@ -137,6 +137,7 @@ export class AuthService {
 
   async resetPassword(email: string): Promise<boolean> {
     try {
+      auth.languageCode = 'th'; // Set language to Thai for the email and reset page
       await sendPasswordResetEmail(auth, email);
       return true;
     } catch (e) {

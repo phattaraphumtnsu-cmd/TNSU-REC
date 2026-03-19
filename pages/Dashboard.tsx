@@ -80,7 +80,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             fetchExpiring();
         }
     }
-  }, [user, filterStatus, filterFaculty]); // Dependencies trigger reload
+  }, [user?.id, user?.roles.join(','), filterStatus, filterFaculty]); // Dependencies trigger reload
 
   const handleDeleteProposal = async (proposalId: string, title: string) => {
       if (window.confirm(`คุณแน่ใจหรือไม่ที่จะลบโครงการ "${title}"?\nการกระทำนี้ไม่สามารถยกเลิกได้`)) {

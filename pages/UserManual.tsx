@@ -436,7 +436,6 @@ const UserManual: React.FC<UserManualProps> = ({ onNavigate }) => {
 
         {/* Content Area */}
         <div 
-            ref={manualRef} 
             className="flex-1 bg-white p-8 rounded-2xl shadow-sm border border-slate-200 min-h-[600px]"
         >
           {isAdmin && (

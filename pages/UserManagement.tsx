@@ -94,7 +94,7 @@ const UserManagement: React.FC = () => {
   const handleResetPassword = async (email: string) => {
       if(window.confirm(`ต้องการส่งอีเมลรีเซ็ตรหัสผ่านไปยัง ${email} ใช่หรือไม่?`)) {
           const success = await db.resetPassword(email);
-          if(success) alert(`ส่งลิงก์รีเซ็ตรหัสผ่านไปยัง ${email} เรียบร้อยแล้ว`);
+          if(success) alert(`ส่งลิงก์รีเซ็ตรหัสผ่านไปยัง ${email} เรียบร้อยแล้ว\n\n* กรุณาแจ้งผู้ใช้งานให้ตรวจสอบในโฟลเดอร์ "จดหมายขยะ" (Spam/Junk) ด้วย`);
           else alert('เกิดข้อผิดพลาดในการส่งอีเมล');
       }
   };
@@ -278,7 +278,7 @@ const UserManagement: React.FC = () => {
             ...newUser
         }, finalPassword);
         
-        alert(`เพิ่มผู้ใช้งาน ${newUser.name} เรียบร้อยแล้ว\nรหัสผ่านเริ่มต้น: ${finalPassword}`);
+        alert(`เพิ่มผู้ใช้งาน ${newUser.name} เรียบร้อยแล้ว\nรหัสผ่านเริ่มต้น: ${finalPassword}\n\n* ระบบได้ส่งอีเมลแจ้งเตือนแล้ว กรุณาแจ้งผู้ใช้ให้ตรวจสอบใน "จดหมายขยะ" (Spam/Junk) ด้วย`);
         fetchUsers();
         setIsAdding(false);
         setNewUser({ ...newUser, name: '', email: '', phoneNumber: '', password: '', roles: [Role.RESEARCHER], role: Role.RESEARCHER });
