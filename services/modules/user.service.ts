@@ -248,4 +248,29 @@ export class UserService {
       return false;
     }
   }
+
+  async getSystemSettings(): Promise<any> {
+    try {
+      const docRef = doc(dbFirestore, 'system_settings', 'general');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        return snap.data();
+      }
+      return {};
+    } catch (e) {
+      console.error("Error fetching system settings", e);
+      return {};
+    }
+  }
+
+  async updateSystemSettings(currentUser: User | null, updates: any): Promise<void> {
+    try {
+      const docRef = doc(dbFirestore, 'system_settings', 'general');
+      await setDoc(docRef, updates, { merge: true });
+      await this.auditService.logActivity(currentUser, 'UPDATE_SETTINGS', 'general', 'Updated system settings');
+    } catch (e) {
+      console.error("Error updating system settings", e);
+      throw e;
+    }
+  }
 }

@@ -225,6 +225,16 @@ class DatabaseService {
     return this.userService.submitSurvey(response);
   }
 
+  // --- System Settings ---
+
+  async getSystemSettings(): Promise<any> {
+    return this.userService.getSystemSettings();
+  }
+
+  async updateSystemSettings(updates: any): Promise<void> {
+    return this.userService.updateSystemSettings(this.currentUser, updates);
+  }
+
   // Helper to expose logActivity if needed by other components (though mostly internal)
   async logActivity(action: string, targetId: string, details: string) {
       await this.auditService.logActivity(this.currentUser, action, targetId, details);
