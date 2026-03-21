@@ -21,6 +21,7 @@ const ReviewerSection: React.FC<ReviewerSectionProps> = ({ proposal, user, onUpd
   if (!proposal.reviewers.includes(user.id)) return null;
 
   const myStatus = proposal.reviewerStates?.[user.id] || ReviewerStatus.PENDING;
+  const hasSubmittedReview = proposal.reviews?.some(r => r.reviewerId === user.id);
 
   const handleAccept = async (accepted: boolean) => {
       setLoading(true);
@@ -78,7 +79,7 @@ const ReviewerSection: React.FC<ReviewerSectionProps> = ({ proposal, user, onUpd
                 </div>
             )}
 
-            {myStatus === ReviewerStatus.ACCEPTED && (
+            {myStatus === ReviewerStatus.ACCEPTED && !hasSubmittedReview && (
                 <div className="space-y-4 animate-in fade-in">
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-2">ผลการพิจารณา</label>
@@ -105,6 +106,16 @@ const ReviewerSection: React.FC<ReviewerSectionProps> = ({ proposal, user, onUpd
                     <button onClick={handleSubmit} disabled={loading} className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 flex justify-center gap-2">
                         {loading && <Loader2 size={16} className="animate-spin"/>} ส่งผลการพิจารณา
                     </button>
+                </div>
+            )}
+
+            {myStatus === ReviewerStatus.ACCEPTED && hasSubmittedReview && (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center">
+                    <div className="mx-auto w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-3">
+                        <PenTool size={24} />
+                    </div>
+                    <p className="text-sm font-bold text-green-800">ท่านได้ส่งผลการพิจารณาเรียบร้อยแล้ว</p>
+                    <p className="text-xs text-green-600 mt-1">ระบบได้ส่งข้อมูลไปยังผู้ดูแลระบบเพื่อรวบรวมแล้ว ขอบคุณสำหรับการพิจารณาครับ</p>
                 </div>
             )}
         </div>

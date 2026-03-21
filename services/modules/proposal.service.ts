@@ -336,6 +336,7 @@ export class ProposalService {
     await this.updateProposal(currentUser, proposalId, {
       reviewers: reviewerIds,
       reviewerStates: reviewerStates,
+      reviews: [],
       status: ProposalStatus.IN_REVIEW
     });
     for (const rid of reviewerIds) {
