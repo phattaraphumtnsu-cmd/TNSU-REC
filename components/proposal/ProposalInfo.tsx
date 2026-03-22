@@ -279,15 +279,20 @@ const ProposalInfo: React.FC<ProposalInfoProps> = ({ proposal, user, onNavigate,
          )}
       </div>
 
-      {/* Blind Review for Researcher */}
-      {user.roles.includes(Role.RESEARCHER) && !user.roles.includes(Role.ADMIN) && proposal.reviews && proposal.reviews.length > 0 && (
+      {/* Reviews Section (Admin sees all immediately, others see blind reviews after finalized) */}
+      {proposal.reviews && proposal.reviews.length > 0 && (
+          (user.roles.includes(Role.ADMIN)) || 
+          ([ProposalStatus.REVISION_REQ, ProposalStatus.REJECTED, ProposalStatus.WAITING_CERT, ProposalStatus.APPROVED].includes(proposal.status))
+      ) && (
           <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 mt-6">
             <h3 className="font-semibold text-slate-800 mb-4">ความเห็นจากคณะกรรมการ ({proposal.reviews.length} ท่าน)</h3>
             <div className="space-y-4">
               {proposal.reviews.map((r, idx) => (
                 <div key={idx} className="bg-white p-4 rounded-lg shadow-sm">
                     <div className="flex justify-between mb-2">
-                      <span className="font-medium text-slate-700">กรรมการท่านที่ {idx + 1}</span>
+                      <span className="font-medium text-slate-700">
+                          {user.roles.includes(Role.ADMIN) ? `กรรมการ: ${r.reviewerName}` : `กรรมการท่านที่ ${idx + 1}`}
+                      </span>
                       <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">{r.vote}</span>
                     </div>
                     <p className="text-slate-600 text-sm mb-2">{r.comment}</p>
@@ -299,6 +304,25 @@ const ProposalInfo: React.FC<ProposalInfoProps> = ({ proposal, user, onNavigate,
                 </div>
               ))}
             </div>
+          </div>
+      )}
+
+      {/* Final Feedback Section for Rejected or Approved */}
+      {[ProposalStatus.REJECTED, ProposalStatus.WAITING_CERT, ProposalStatus.APPROVED].includes(proposal.status) && proposal.consolidatedFeedback && (
+          <div className={`rounded-xl p-6 border mt-6 ${proposal.status === ProposalStatus.REJECTED ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+            <h3 className={`font-semibold mb-4 ${proposal.status === ProposalStatus.REJECTED ? 'text-red-800' : 'text-green-800'}`}>
+                {proposal.status === ProposalStatus.REJECTED ? 'เหตุผลที่ไม่อนุมัติโครงการ' : 'ข้อเสนอแนะเพิ่มเติมจากคณะกรรมการ'}
+            </h3>
+            <div className="bg-white p-4 rounded-lg shadow-sm whitespace-pre-wrap text-sm text-slate-700">
+                {proposal.consolidatedFeedback}
+            </div>
+            {proposal.consolidatedFileLink && (
+                <div className="mt-3">
+                    <a href={proposal.consolidatedFileLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded">
+                        <Link2 size={12} /> เอกสารแนบเพิ่มเติม
+                    </a>
+                </div>
+            )}
           </div>
       )}
     </div>
