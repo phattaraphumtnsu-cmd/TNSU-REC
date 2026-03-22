@@ -35,15 +35,15 @@ export class ProposalService {
     return 'GEN';
   }
 
-  private async notifyAdmins(message: string, link: string) {
+  private async notifyAdmins(message: string, link: string, trigger: EmailTrigger = EmailTrigger.GENERAL_NOTIFICATION, data?: Record<string, string>) {
       const admins = await this.userService.getUsersByRole(Role.ADMIN);
       for (const admin of admins) {
           await this.notificationService.sendNotification(
               admin.id, 
               message, 
               link,
-              EmailTrigger.GENERAL_NOTIFICATION,
-              { message, link }
+              trigger,
+              data || { message, link }
           );
       }
   }
@@ -209,7 +209,9 @@ export class ProposalService {
         } else {
             await this.notifyAdmins(
                 `มีคำขอใหม่: ${p.titleTh}`, 
-                `proposal?id=${proposal.id}`
+                `proposal?id=${proposal.id}`,
+                EmailTrigger.PROPOSAL_SUBMITTED,
+                { title: p.titleTh || '', researcher: p.researcherName || '', link: `proposal?id=${proposal.id}` }
             );
         }
         return proposal;
@@ -370,7 +372,12 @@ export class ProposalService {
      }
      
      await this.updateProposal(currentUser, proposalId, { reviews: newReviews });
-     await this.notifyAdmins(`กรรมการ ${review.reviewerName} ส่งผลพิจารณา: ${proposalTitle}`, `proposal?id=${proposalId}`);
+     await this.notifyAdmins(
+         `กรรมการ ${review.reviewerName} ส่งผลพิจารณา: ${proposalTitle}`, 
+         `proposal?id=${proposalId}`,
+         EmailTrigger.REVIEW_SUBMITTED,
+         { reviewerName: review.reviewerName, title: proposalTitle, link: `proposal?id=${proposalId}` }
+     );
   }
 
   async submitRevision(currentUser: User | null, proposalId: string, revisionLink: string, revisionNoteLink: string, currentHistory: RevisionLog[], currentCount: number, proposalTitle: string, adminFeedbackSnapshot?: string) {
@@ -392,7 +399,12 @@ export class ProposalService {
         revisionHistory: newHistory
      });
 
-     await this.notifyAdmins(`มีการส่งแก้ไขโครงการ: ${proposalTitle} (ครั้งที่ ${newCount})`, `proposal?id=${proposalId}`);
+     await this.notifyAdmins(
+         `มีการส่งแก้ไขโครงการ: ${proposalTitle} (ครั้งที่ ${newCount})`, 
+         `proposal?id=${proposalId}`,
+         EmailTrigger.REVISION_SUBMITTED,
+         { title: proposalTitle, link: `proposal?id=${proposalId}` }
+     );
   }
 
   async getReviewerWorkload(): Promise<any[]> {

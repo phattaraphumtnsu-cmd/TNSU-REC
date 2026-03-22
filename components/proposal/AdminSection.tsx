@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Proposal, ProposalStatus, User, Vote, Role, ReviewerStatus } from '../../types';
+import { Proposal, ProposalStatus, User, Vote, Role, ReviewerStatus, EmailTrigger } from '../../types';
 import { db } from '../../services/database';
 import { Users, UserPlus, X, Loader2, Shield, RotateCcw, Gavel, Link2, RefreshCw, CheckCircle, Award, ExternalLink, AlertCircle, Clock } from 'lucide-react';
 
@@ -73,6 +73,16 @@ const AdminSection: React.FC<AdminSectionProps> = ({ proposal, user, onUpdate })
             status: ProposalStatus.ADMIN_REJECTED,
             adminFeedback: preFeedback
         });
+
+        // Send notification to researcher
+        await db.sendNotification(
+            proposal.researcherId,
+            `เจ้าหน้าที่ได้ส่งคืนโครงการเพื่อให้แก้ไข: ${proposal.titleTh}`,
+            `proposal?id=${proposal.id}`,
+            EmailTrigger.REVISION_REQUESTED,
+            { title: proposal.titleTh, reason: preFeedback, link: `proposal?id=${proposal.id}` }
+        );
+
         alert('ส่งคืนโครงการให้ผู้วิจัยแก้ไขเรียบร้อยแล้ว');
         setPreFeedback('');
         onUpdate();
@@ -86,11 +96,34 @@ const AdminSection: React.FC<AdminSectionProps> = ({ proposal, user, onUpdate })
             consolidatedFeedback: feedback,
             consolidatedFileLink: fileLink
         };
-        if (decision === Vote.FIX) updates.status = ProposalStatus.REVISION_REQ;
-        else if (decision === Vote.REJECT) updates.status = ProposalStatus.REJECTED;
-        else updates.status = ProposalStatus.WAITING_CERT;
+        
+        let msg = '';
+        let trigger = EmailTrigger.GENERAL_NOTIFICATION;
+
+        if (decision === Vote.FIX) {
+            updates.status = ProposalStatus.REVISION_REQ;
+            msg = `คณะกรรมการมีมติให้แก้ไขโครงการ: ${proposal.titleTh}`;
+            trigger = EmailTrigger.REVISION_REQUESTED;
+        } else if (decision === Vote.REJECT) {
+            updates.status = ProposalStatus.REJECTED;
+            msg = `คณะกรรมการมีมติไม่อนุมัติโครงการ: ${proposal.titleTh}`;
+            trigger = EmailTrigger.PROPOSAL_STATUS_CHANGE;
+        } else {
+            updates.status = ProposalStatus.WAITING_CERT;
+            msg = `คณะกรรมการมีมติอนุมัติโครงการ: ${proposal.titleTh} (รอออกใบรับรอง)`;
+            trigger = EmailTrigger.PROPOSAL_STATUS_CHANGE;
+        }
         
         await db.updateProposal(proposal.id, updates);
+
+        await db.sendNotification(
+            proposal.researcherId,
+            msg,
+            `proposal?id=${proposal.id}`,
+            trigger,
+            { title: proposal.titleTh, status: updates.status, message: feedback || 'กรุณาตรวจสอบรายละเอียดในระบบ', link: `proposal?id=${proposal.id}` }
+        );
+
         alert('บันทึกผลการพิจารณาแล้ว');
         onUpdate();
     } catch (e: any) { alert(e.message); } finally { setLoading(false); }
@@ -111,6 +144,15 @@ const AdminSection: React.FC<AdminSectionProps> = ({ proposal, user, onUpdate })
             approvalDate: certData.issueDate,
             nextReportDueDate: new Date(new Date(certData.issueDate).setMonth(new Date(certData.issueDate).getMonth() + 6)).toISOString().split('T')[0]
         });
+
+        await db.sendNotification(
+            proposal.researcherId,
+            `โครงการของท่านได้รับการออกใบรับรองแล้ว: ${proposal.titleTh}`,
+            `proposal?id=${proposal.id}`,
+            EmailTrigger.CERTIFICATE_ISSUED,
+            { title: proposal.titleTh, link: `proposal?id=${proposal.id}` }
+        );
+
         alert('ออกใบรับรองเรียบร้อย');
         onUpdate();
      } catch (e: any) { alert(e.message); } finally { setLoading(false); }

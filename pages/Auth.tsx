@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { db } from '../services/database';
 import { CAMPUSES, FACULTIES, Role, SCHOOLS, UserType, User } from '../types';
-import { User as UserIcon, Lock, HelpCircle, ArrowLeft, Mail, Key, Loader2, Phone } from 'lucide-react';
+import { User as UserIcon, Lock, HelpCircle, ArrowLeft, Mail, Key, Loader2, Phone, AlertCircle } from 'lucide-react';
 
 interface AuthProps {
   onLogin: (user: User) => void;
@@ -253,6 +253,14 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
 
           {view === 'REGISTER' && (
             <form onSubmit={handleRegister} className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm p-3 rounded-lg flex items-start gap-2 mb-2">
+                <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold block">คำแนะนำในการลงทะเบียน:</span>
+                  เพื่อการรับอีเมลแจ้งเตือนจากระบบที่ครบถ้วน แนะนำให้ใช้อีเมล <strong>@gmail.com</strong> หรือ <strong>Google Workspace (@tnsu.ac.th)</strong> ในการลงทะเบียน
+                </div>
+              </div>
+
               {/* Role Selection */}
               <div className="flex gap-4 mb-4">
                  <label className={`flex-1 p-3 border rounded-lg cursor-pointer text-center text-sm font-medium ${regRole === Role.RESEARCHER ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-200'}`}>
@@ -287,7 +295,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin, onNavigateManual }) => {
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">อีเมล</label>
-                <input type="email" required value={regEmail} onChange={e => setRegEmail(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg" />
+                <input type="email" required value={regEmail} onChange={e => setRegEmail(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg" placeholder="แนะนำ @gmail.com หรือ @tnsu.ac.th" />
+                <p className="text-xs text-slate-500 mt-1">* แนะนำให้ใช้ Gmail หรือ Google Workspace เพื่อป้องกันอีเมลตกหล่น</p>
               </div>
 
               <div>

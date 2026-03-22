@@ -52,6 +52,38 @@ const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
     isActive: true
   },
   {
+    id: EmailTrigger.REVIEW_SUBMITTED,
+    name: 'Review Submitted',
+    subject: 'กรรมการได้ส่งผลการพิจารณาโครงการ: {{title}}',
+    body: '<p>เรียน Admin,</p><p>กรรมการ {{reviewerName}} ได้ส่งผลการพิจารณาโครงการวิจัยเรื่อง:</p><p><b>{{title}}</b></p><p>กรุณาตรวจสอบผลการพิจารณา: <a href="{{link}}">คลิกที่นี่</a></p>',
+    variables: ['reviewerName', 'title', 'link'],
+    isActive: true
+  },
+  {
+    id: EmailTrigger.REVISION_REQUESTED,
+    name: 'Revision Requested',
+    subject: 'แจ้งให้แก้ไขข้อเสนอโครงการ: {{title}}',
+    body: '<p>เรียน ผู้วิจัย,</p><p>โครงการวิจัยเรื่อง <b>{{title}}</b> ของท่านได้รับการพิจารณาและมีข้อเสนอแนะให้แก้ไข</p><p><b>เหตุผล/ข้อเสนอแนะ:</b> {{reason}}</p><p>กรุณาตรวจสอบและดำเนินการแก้ไข: <a href="{{link}}">คลิกที่นี่</a></p>',
+    variables: ['title', 'reason', 'link'],
+    isActive: true
+  },
+  {
+    id: EmailTrigger.REVISION_SUBMITTED,
+    name: 'Revision Submitted',
+    subject: 'ผู้วิจัยได้ส่งฉบับแก้ไขโครงการ: {{title}}',
+    body: '<p>เรียน Admin,</p><p>ผู้วิจัยได้ส่งฉบับแก้ไขโครงการวิจัยเรื่อง:</p><p><b>{{title}}</b></p><p>กรุณาตรวจสอบฉบับแก้ไข: <a href="{{link}}">คลิกที่นี่</a></p>',
+    variables: ['title', 'link'],
+    isActive: true
+  },
+  {
+    id: EmailTrigger.CERTIFICATE_ISSUED,
+    name: 'Certificate Issued',
+    subject: 'ออกใบรับรองโครงการ: {{title}}',
+    body: '<p>เรียน ผู้วิจัย,</p><p>โครงการวิจัยเรื่อง <b>{{title}}</b> ของท่านได้รับการออกใบรับรองเรียบร้อยแล้ว</p><p>สามารถดาวน์โหลดใบรับรองได้ที่: <a href="{{link}}">คลิกที่นี่</a></p>',
+    variables: ['title', 'link'],
+    isActive: true
+  },
+  {
     id: EmailTrigger.GENERAL_NOTIFICATION,
     name: 'General Notification',
     subject: 'แจ้งเตือนจากระบบ TNSU-REC',
@@ -230,7 +262,11 @@ export class NotificationService {
                 data.link = `${window.location.origin}/${data.link}`;
             }
 
-            await this.sendSystemEmail(userData.email, trigger, data);
+            if (userData.email) {
+                await this.sendSystemEmail(userData.email, trigger, data);
+            } else {
+                console.warn(`User ${userId} has no email address. Skipping email notification.`);
+            }
         }
     } catch (e) {
         console.error("Failed to queue email:", e);
